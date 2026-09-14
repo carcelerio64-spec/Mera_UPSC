@@ -40,6 +40,8 @@ data class TypedAnswerRequest(val question_id:Int,val answer_text:String)
 data class AnswerSubmissionResponse(val submission_id:Int,val question_id:Int,val max_marks:Int,val word_limit:Int,val status:String)
 data class AnswerHistoryDto(val submission_id:Int,val question_id:Int,val question:String,val paper:String,val subject:String,val topic:String,val status:String,val max_marks:Int,val word_limit:Int,val marks_awarded:Double?=null,val file_type:String?=null,val file_url:String?=null)
 data class AnswerEvaluationDto(val submission_id:Int,val status:String,val marks_awarded:Double?=null,val max_marks:Int?=null,val demand_score:Double?=null,val structure_score:Double?=null,val analysis_score:Double?=null,val evidence_score:Double?=null,val presentation_score:Double?=null,val word_limit_score:Double?=null,val strengths:String?=null,val improvements:String?=null,val model_framework:String?=null,val official_upsc_marks:Boolean?=null)
+data class AiTeacherAskRequest(val question:String,val language:String="hi",val subject:String="",val topic:String="",val paper:String="")
+data class AiTeacherResponse(val question:String,val prelims_view:String,val mains_view:String,val quick_revision:List<String> = emptyList(),val source_note:String="")
 
 interface UpscApi{
     @FormUrlEncoded @POST("auth/token") suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
@@ -62,6 +64,7 @@ interface UpscApi{
     @Multipart @POST("mains/answers/upload") suspend fun uploadMainsAnswer(@Header("Authorization") auth:String,@Part("question_id") questionId:RequestBody,@Part file:MultipartBody.Part):AnswerSubmissionResponse
     @GET("mains/answers") suspend fun mainsAnswerHistory(@Header("Authorization") auth:String):List<AnswerHistoryDto>
     @GET("mains/answers/{submissionId}/evaluation") suspend fun mainsEvaluation(@Header("Authorization") auth:String,@Path("submissionId") submissionId:Int):AnswerEvaluationDto
+    @POST("ai-teacher/ask") suspend fun askAiTeacher(@Header("Authorization") auth:String,@Body body:AiTeacherAskRequest):AiTeacherResponse
 }
 
 object ApiClient{
