@@ -1,9 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from .current_affairs import list_items
 from .study_system import SessionStudy, ClassNote, QuestionBank
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
+from .pyq_service import fetch_official_pyq
 
 
 def _valid_topic(exam: str, paper: str, subject: str, topic: str) -> bool:
@@ -65,5 +68,18 @@ def build_study_router(current_user):
             }
         finally:
             s.close()
+
+    @router.get('/pyq')
+    def official_pyq(
+        exam:str='mains',
+        year:int=2026,
+        subject:Optional[str]=None,
+        u=Depends(current_user),
+    ):
+        if exam not in {'prelims','mains'}:
+            raise HTTPException(status_code=400,detail='exam must be prelims or mains')
+        if year<2011 or year>2100:
+            raise HTTPException(status_code=400,detail='Invalid year')
+        return fetch_official_pyq(exam=exam,year=year,subject=subject)
 
     return router
