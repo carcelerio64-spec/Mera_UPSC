@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -54,10 +55,12 @@ fun UpscApp(context:Context){
         Box(Modifier.padding(p).fillMaxSize()){
             when(page){
                 "home"->HomeScreen(token,onPrelims={page="prelims"},onMains={page="mains"},onOptional={page="optional"},onLogout={prefs.edit().remove("token").apply();token=""})
-                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🧠 Practice","⏱ Mock Test","📰 Current Affairs","🗂 Class Notes","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="prelims_syllabus";item.startsWith("🗂")->{notesExam="prelims";page="class_notes"}}}){page="home"}
-                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","✍ Answer Writing","📄 Test / PDF Paper","📰 Mains Current Affairs","🗂 Class Notes","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="mains_syllabus";item.startsWith("🗂")->{notesExam="mains";page="class_notes"}}}){page="home"}
+                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="prelims_syllabus";item.startsWith("📜")->page="prelims_pyq";item.startsWith("🗂")->{notesExam="prelims";page="class_notes"}}}){page="home"}
+                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="mains_syllabus";item.startsWith("📜")->page="mains_pyq";item.startsWith("🗂")->{notesExam="mains";page="class_notes"}}}){page="home"}
                 "prelims_syllabus"->SyllabusScreen(token,"prelims","PRELIMS SYLLABUS",onTopic={row,topic->studyTarget=StudyTarget("prelims",row.paper,row.subject,topic);page="topic_study"}){page="prelims"}
                 "mains_syllabus"->SyllabusScreen(token,"mains","MAINS SYLLABUS",onTopic={row,topic->studyTarget=StudyTarget("mains",row.paper,row.subject,topic);page="topic_study"}){page="mains"}
+                "prelims_pyq"->PyqScreen(token,"prelims"){page="prelims"}
+                "mains_pyq"->PyqScreen(token,"mains"){page="mains"}
                 "optional"->OptionalScreen(token,onNotes={notesExam="optional";page="class_notes"}){page="home"}
                 "class_notes"->ClassNotesScreen(context,token,notesExam){page=if(notesExam=="prelims")"prelims" else if(notesExam=="mains")"mains" else "optional"}
                 "topic_study"->studyTarget?.let{target->TopicStudyScreen(token,target){page=if(target.exam=="prelims")"prelims_syllabus" else "mains_syllabus"}}
@@ -124,6 +127,26 @@ fun TopicStudyScreen(token:String,target:StudyTarget,back:()->Unit){
         Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){Column(Modifier.padding(18.dp)){Text("Question Bank",fontWeight=FontWeight.Bold);Text("Saved unique questions: ${data?.question_bank_count?:0}")}}
         Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){Column(Modifier.padding(18.dp)){Text("Class Notes",fontWeight=FontWeight.Bold);if(data?.class_notes.isNullOrEmpty())Text("इस topic पर अभी कोई note upload नहीं है।") else data?.class_notes?.forEach{Text("• ${it.title} (${it.file_type})",modifier=Modifier.padding(top=6.dp))}}}
         Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){Column(Modifier.padding(18.dp)){Text("Current Affairs",fontWeight=FontWeight.Bold);Text("Linked saved items: ${data?.current_affairs?.size?:0}")}}
+    }
+}
+
+@Composable
+fun PyqScreen(token:String,exam:String,back:()->Unit){
+    val scope=rememberCoroutineScope();val uriHandler=LocalUriHandler.current
+    var yearText by remember{mutableStateOf("2026")};var subject by remember{mutableStateOf("")};var data by remember{mutableStateOf<PyqResponseDto?>(null)};var loading by remember{mutableStateOf(false)};var error by remember{mutableStateOf("")}
+    fun load(){scope.launch{loading=true;error="";try{data=ApiClient.api.pyq(ApiClient.bearer(token),exam,yearText.toIntOrNull()?:2026,subject.trim().ifBlank{null})}catch(_:Exception){error="Official PYQ load नहीं हुआ"}finally{loading=false}}}
+    LaunchedEffect(exam){load()}
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)){
+        TextButton(onClick=back){Text("← ${exam.uppercase()} PYQ")}
+        Text("Official UPSC Previous Papers",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        OutlinedTextField(yearText,{yearText=it.filter(Char::isDigit)},label={Text("Year")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        OutlinedTextField(subject,{subject=it},label={Text("Subject filter")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        Button(onClick={load()},modifier=Modifier.fillMaxWidth()){Text("PYQ देखें")}
+        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical=10.dp))
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(vertical=8.dp))
+        data?.papers?.forEach{p->Card(onClick={uriHandler.openUri(p.url)},modifier=Modifier.fillMaxWidth().padding(vertical=6.dp)){Row(Modifier.fillMaxWidth().padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text("UPSC • ${data?.year}",style=MaterialTheme.typography.labelMedium);Text(p.title,fontWeight=FontWeight.Bold)};Text("↗")}}}
+        if(!loading&&data!=null&&data?.papers.isNullOrEmpty())Text("इस filter के लिए direct paper नहीं मिला।",modifier=Modifier.padding(vertical=12.dp))
+        data?.source_page?.let{url->TextButton(onClick={uriHandler.openUri(url)}){Text("UPSC official source page")}}
     }
 }
 
