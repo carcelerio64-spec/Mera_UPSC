@@ -43,7 +43,7 @@ from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 pwd=CryptContext(schemes=['bcrypt'],deprecated='auto')
 oauth2=OAuth2PasswordBearer(tokenUrl='/auth/token')
-app=FastAPI(title='UPSC Prep API',version='1.4.0')
+app=FastAPI(title='UPSC Prep API',version='1.5.0')
 app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 
 def db():
@@ -123,5 +123,9 @@ def dashboard(u:User=Depends(current_user),s:Session=Depends(db)):
 
 from .feature_routes import build_feature_router
 from .topic_routes import build_topic_router
+from .mains_answer_routes import build_mains_answer_router
+from .mains_marking_routes import build_mains_marking_router
 app.include_router(build_feature_router(current_user))
 app.include_router(build_topic_router(current_user))
+app.include_router(build_mains_answer_router(current_user))
+app.include_router(build_mains_marking_router(current_user))
