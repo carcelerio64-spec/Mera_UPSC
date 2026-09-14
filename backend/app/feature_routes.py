@@ -14,6 +14,7 @@ from .official_sources import ingest_official_sources
 from .study_system import SessionStudy, OPTIONAL_SUBJECTS, OptionalSelection, ClassNote, QuestionBank, save_unique_question
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import get_optional_subject, optional_topic_is_verified, optional_coverage
+from .study_routes import build_study_router
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 UPLOAD_DIR=Path(os.getenv('UPLOAD_DIR','./uploads'))
@@ -185,4 +186,5 @@ def build_feature_router(current_user):
             return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'title':r.title,'file_type':r.file_type,'file_url':r.file_url,'uploaded_at':r.uploaded_at.isoformat()} for r in rows]
         finally:s.close()
 
+    router.include_router(build_study_router(current_user))
     return router
