@@ -34,16 +34,18 @@ fun UpscAppRoot(context:Context){
         Box(Modifier.padding(padding).fillMaxSize()){
             when(page){
                 "home"->HomeScreen(token,onPrelims={page="prelims"},onMains={page="mains"},onOptional={page="optional"},onLogout={prefs.edit().remove("token").apply();token=""})
-                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
+                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🤖 AI Teacher","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
                     item.startsWith("📚")->page="prelims_syllabus"
+                    item.startsWith("🤖")->page="ai_teacher"
                     item.startsWith("🧠")->{practiceExam="prelims";page="completed_practice"}
                     item.startsWith("📜")->page="prelims_pyq"
                     item.startsWith("📰")->{currentExam="prelims";page="current_affairs"}
                     item.startsWith("🗂")->{notesExam="prelims";page="class_notes"}
                     item.startsWith("❌")->{wrongExam="prelims";page="wrong_questions"}
                 }}){page="home"}
-                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
+                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","🤖 AI Teacher","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
                     item.startsWith("📚")->page="mains_syllabus"
+                    item.startsWith("🤖")->page="ai_teacher"
                     item.startsWith("✍")->{practiceExam="mains";page="completed_practice"}
                     item.startsWith("📜")->page="mains_pyq"
                     item.startsWith("📰")->{currentExam="mains";page="current_affairs"}
@@ -62,6 +64,7 @@ fun UpscAppRoot(context:Context){
                 "completed_practice"->CompletedPracticeScreen(token,practiceExam,onBack={page=if(practiceExam=="prelims")"prelims" else "mains"},onOpenSection={selectedSection=it;page="topic_questions"})
                 "topic_questions"->selectedSection?.let{section->TopicQuestionListScreen(token,section,onBack={page="completed_practice"},onWriteAnswer={q->answerQuestion=q;page="mains_answer"})}
                 "mains_answer"->answerQuestion?.let{q->MainsAnswerWritingScreen(context,token,q){page="topic_questions"}}
+                "ai_teacher"->AiTeacherScreen(token){page="home"}
             }
         }
     }
