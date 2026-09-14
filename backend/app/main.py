@@ -43,7 +43,7 @@ from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 pwd=CryptContext(schemes=['bcrypt'],deprecated='auto')
 oauth2=OAuth2PasswordBearer(tokenUrl='/auth/token')
-app=FastAPI(title='UPSC Prep API',version='1.3.0')
+app=FastAPI(title='UPSC Prep API',version='1.4.0')
 app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 
 def db():
@@ -66,7 +66,7 @@ class UserOut(BaseModel):
 class ProgressIn(BaseModel):
     topic_id:int; status:str; percent:int
 class MockIn(BaseModel):
-    paper:str='GS Paper-I'; total_questions:int=100; correct:int; wrong:int; unattempted:int; marks_per_question:float=2.0; negative_fraction:float=1/3; duration_seconds:int
+    paper:str='GS Paper-I'; total_questions:int=100; correct:int; wrong:int; unattempted:int; marks_per_question:float=2.0; duration_seconds:int
 
 @app.on_event('startup')
 def seed():
@@ -106,8 +106,10 @@ def save_progress(x:ProgressIn,u:User=Depends(current_user),s:Session=Depends(db
 @app.post('/prelims/mock/submit')
 def submit_mock(x:MockIn,u:User=Depends(current_user),s:Session=Depends(db)):
     if x.correct+x.wrong+x.unattempted!=x.total_questions: raise HTTPException(400,'Counts must equal total questions')
-    score=(x.correct*x.marks_per_question)-(x.wrong*x.marks_per_question*x.negative_fraction); r=MockResult(user_id=u.id,paper=x.paper,total_questions=x.total_questions,correct=x.correct,wrong=x.wrong,unattempted=x.unattempted,marks_per_question=x.marks_per_question,negative_fraction=x.negative_fraction,score=round(score,2),duration_seconds=x.duration_seconds); s.add(r); s.commit(); s.refresh(r)
-    return {'id':r.id,'score':r.score,'max_marks':round(x.total_questions*x.marks_per_question,2),'accuracy':round((x.correct/max(1,x.correct+x.wrong))*100,2)}
+    negative_fraction=1/3
+    score=(x.correct*x.marks_per_question)-(x.wrong*x.marks_per_question*negative_fraction)
+    r=MockResult(user_id=u.id,paper=x.paper,total_questions=x.total_questions,correct=x.correct,wrong=x.wrong,unattempted=x.unattempted,marks_per_question=x.marks_per_question,negative_fraction=negative_fraction,score=round(score,2),duration_seconds=x.duration_seconds); s.add(r); s.commit(); s.refresh(r)
+    return {'id':r.id,'score':r.score,'max_marks':round(x.total_questions*x.marks_per_question,2),'accuracy':round((x.correct/max(1,x.correct+x.wrong))*100,2),'negative_fraction':negative_fraction}
 @app.get('/current-affairs')
 def current_affairs(subject:Optional[str]=None,limit:int=50,u:User=Depends(current_user)): return list_items(subject=subject,limit=limit)
 @app.post('/admin/current-affairs/ingest')
