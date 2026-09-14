@@ -1,0 +1,25 @@
+name: Daily UPSC Current Affairs
+
+on:
+  schedule:
+    # 00:30 UTC = 06:00 IST
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger official-source ingestion
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+        run: |
+          if [ -z "$BACKEND_URL" ] || [ -z "$INGEST_KEY" ]; then
+            echo "BACKEND_URL and INGEST_KEY repository secrets are required."
+            exit 1
+          fi
+          curl --fail --show-error --silent \
+            -X POST "$BACKEND_URL/admin/current-affairs/ingest" \
+            -H "X-Ingest-Key: $INGEST_KEY" \
+            -H "Accept: application/json"
