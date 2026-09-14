@@ -8,6 +8,27 @@ from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
 
+CA_SUBJECT_MAP={
+    'Current Affairs':'समसामयिकी',
+    'History & Culture':'इतिहास एवं संस्कृति',
+    'Indian Heritage & Culture':'इतिहास एवं संस्कृति',
+    'Modern Indian History':'इतिहास एवं संस्कृति',
+    'World History':'इतिहास एवं संस्कृति',
+    'Geography':'भूगोल',
+    'Polity & Governance':'राजव्यवस्था',
+    'Constitution & Polity':'राजव्यवस्था',
+    'Governance & Social Justice':'सामाजिक मुद्दे',
+    'Economy & Social Development':'अर्थव्यवस्था',
+    'Economy':'अर्थव्यवस्था',
+    'Environment':'पर्यावरण',
+    'Environment & Disaster Management':'पर्यावरण',
+    'General Science':'विज्ञान एवं प्रौद्योगिकी',
+    'Science & Technology':'विज्ञान एवं प्रौद्योगिकी',
+    'International Relations':'अंतरराष्ट्रीय संबंध',
+    'Indian Society':'सामाजिक मुद्दे',
+    'Internal Security':'आंतरिक सुरक्षा',
+}
+
 
 def _valid_topic(exam: str, paper: str, subject: str, topic: str) -> bool:
     key=(exam or '').lower()
@@ -42,6 +63,7 @@ def build_study_router(current_user):
                 QuestionBank.subject==subject,
                 QuestionBank.topic==topic,
             ).count()
+            ca_subject=CA_SUBJECT_MAP.get(subject,subject)
             return {
                 'exam':exam,
                 'paper':paper,
@@ -64,18 +86,13 @@ def build_study_router(current_user):
                     }
                     for n in notes
                 ],
-                'current_affairs':list_items(subject=subject,limit=10),
+                'current_affairs':list_items(subject=ca_subject,limit=10),
             }
         finally:
             s.close()
 
     @router.get('/pyq')
-    def official_pyq(
-        exam:str='mains',
-        year:int=2026,
-        subject:Optional[str]=None,
-        u=Depends(current_user),
-    ):
+    def official_pyq(exam:str='mains',year:int=2026,subject:Optional[str]=None,u=Depends(current_user)):
         if exam not in {'prelims','mains'}:
             raise HTTPException(status_code=400,detail='exam must be prelims or mains')
         if year<2011 or year>2100:
