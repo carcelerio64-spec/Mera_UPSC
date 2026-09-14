@@ -29,73 +29,45 @@ data class CurrentAffairDto(val id:Int,val source_name:String,val source_url:Str
 data class WrongQuestionDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val question:String,val difficulty:String,val options:List<String> = emptyList(),val last_answer:String? = null,val attempted_at:String? = null)
 data class ClassNoteDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val subtopic:String,val title:String,val file_type:String,val file_url:String,val uploaded_at:String)
 data class UploadNoteResponse(val ok:Boolean,val id:Int,val file_type:String,val file_url:String)
-data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean = false,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val current_affairs:List<Map<String,Any?>> = emptyList())
+data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean=false,val completed:Boolean=false,val question_section_unlocked:Boolean=false,val question_target:Int=0,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val generation_needed:Int=0,val current_affairs:List<Map<String,Any?>> = emptyList())
+data class TopicCompletionRequest(val exam:String,val paper:String,val subject:String,val topic:String,val completed:Boolean=true)
+data class TopicCompletionResponse(val ok:Boolean,val completed:Boolean,val exam:String,val paper:String,val subject:String,val topic:String,val question_target:Int,val saved_questions:Int,val generation_needed:Int,val section_key:String)
+data class QuestionSectionDto(val section_key:String,val exam:String,val paper:String,val subject:String,val topic:String,val completed_at:String,val question_target:Int,val saved_questions:Int,val generation_needed:Int,val ready:Boolean)
+data class QuestionSectionsResponse(val exam:String,val target_per_topic:Int,val sections:List<QuestionSectionDto> = emptyList())
+data class TopicQuestionDto(val id:Int,val subtopic:String?=null,val question:String,val difficulty:String?=null,val source:String?=null)
+data class TopicQuestionResponse(val section_key:String,val exam:String,val paper:String,val subject:String,val topic:String,val target:Int,val questions:List<TopicQuestionDto> = emptyList())
+data class TypedAnswerRequest(val question_id:Int,val answer_text:String)
+data class AnswerSubmissionResponse(val submission_id:Int,val question_id:Int,val max_marks:Int,val word_limit:Int,val status:String)
+data class AnswerHistoryDto(val submission_id:Int,val question_id:Int,val question:String,val paper:String,val subject:String,val topic:String,val status:String,val max_marks:Int,val word_limit:Int,val marks_awarded:Double?=null,val file_type:String?=null,val file_url:String?=null)
+data class AnswerEvaluationDto(val submission_id:Int,val status:String,val marks_awarded:Double?=null,val max_marks:Int?=null,val demand_score:Double?=null,val structure_score:Double?=null,val analysis_score:Double?=null,val evidence_score:Double?=null,val presentation_score:Double?=null,val word_limit_score:Double?=null,val strengths:String?=null,val improvements:String?=null,val model_framework:String?=null,val official_upsc_marks:Boolean?=null)
 
 interface UpscApi{
-    @FormUrlEncoded
-    @POST("auth/token")
-    suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
+    @FormUrlEncoded @POST("auth/token") suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
+    @GET("dashboard") suspend fun dashboard(@Header("Authorization") auth:String):DashboardDto
+    @GET("syllabus/{exam}") suspend fun syllabus(@Path("exam") exam:String,@Header("Authorization") auth:String):List<SyllabusSectionDto>
+    @GET("optional/subjects") suspend fun optionalSubjects(@Header("Authorization") auth:String):List<String>
+    @GET("optional/selection") suspend fun optionalSelection(@Header("Authorization") auth:String):OptionalSelectionDto
+    @PUT("optional/selection") suspend fun saveOptional(@Header("Authorization") auth:String,@Body body:OptionalSaveRequest):OptionalSelectionDto
+    @GET("optional/syllabus/{subject}") suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
+    @GET("pyq") suspend fun pyq(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("year") year:Int,@Query("subject") subject:String? = null):PyqResponseDto
+    @GET("current-affairs/date-wise") suspend fun currentAffairs(@Header("Authorization") auth:String,@Query("date") date:String,@Query("subject") subject:String? = null,@Query("limit") limit:Int = 100):List<CurrentAffairDto>
+    @GET("wrong-questions") suspend fun wrongQuestions(@Header("Authorization") auth:String,@Query("limit") limit:Int = 200):List<WrongQuestionDto>
+    @GET("class-notes") suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
 
-    @GET("dashboard")
-    suspend fun dashboard(@Header("Authorization") auth:String):DashboardDto
+    @Multipart @POST("uploads/class-note") suspend fun uploadClassNote(@Header("Authorization") auth:String,@Part file:MultipartBody.Part,@Part("exam") exam:RequestBody,@Part("subject") subject:RequestBody,@Part("topic") topic:RequestBody,@Part("title") title:RequestBody,@Part("paper") paper:RequestBody,@Part("subtopic") subtopic:RequestBody):UploadNoteResponse
 
-    @GET("syllabus/{exam}")
-    suspend fun syllabus(@Path("exam") exam:String,@Header("Authorization") auth:String):List<SyllabusSectionDto>
+    @GET("study/topic") suspend fun topicStudy(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String):TopicStudyDto
+    @PUT("study/topic/completion") suspend fun setTopicCompletion(@Header("Authorization") auth:String,@Body body:TopicCompletionRequest):TopicCompletionResponse
+    @GET("study/question-sections") suspend fun questionSections(@Header("Authorization") auth:String,@Query("exam") exam:String):QuestionSectionsResponse
+    @GET("question-bank/by-topic") suspend fun topicQuestions(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String,@Query("limit") limit:Int=100):TopicQuestionResponse
 
-    @GET("optional/subjects")
-    suspend fun optionalSubjects(@Header("Authorization") auth:String):List<String>
-
-    @GET("optional/selection")
-    suspend fun optionalSelection(@Header("Authorization") auth:String):OptionalSelectionDto
-
-    @PUT("optional/selection")
-    suspend fun saveOptional(@Header("Authorization") auth:String,@Body body:OptionalSaveRequest):OptionalSelectionDto
-
-    @GET("optional/syllabus/{subject}")
-    suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
-
-    @GET("pyq")
-    suspend fun pyq(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("year") year:Int,@Query("subject") subject:String? = null):PyqResponseDto
-
-    @GET("current-affairs/date-wise")
-    suspend fun currentAffairs(@Header("Authorization") auth:String,@Query("date") date:String,@Query("subject") subject:String? = null,@Query("limit") limit:Int = 100):List<CurrentAffairDto>
-
-    @GET("wrong-questions")
-    suspend fun wrongQuestions(@Header("Authorization") auth:String,@Query("limit") limit:Int = 200):List<WrongQuestionDto>
-
-    @GET("class-notes")
-    suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
-
-    @Multipart
-    @POST("uploads/class-note")
-    suspend fun uploadClassNote(
-        @Header("Authorization") auth:String,
-        @Part file:MultipartBody.Part,
-        @Part("exam") exam:RequestBody,
-        @Part("subject") subject:RequestBody,
-        @Part("topic") topic:RequestBody,
-        @Part("title") title:RequestBody,
-        @Part("paper") paper:RequestBody,
-        @Part("subtopic") subtopic:RequestBody,
-    ):UploadNoteResponse
-
-    @GET("study/topic")
-    suspend fun topicStudy(
-        @Header("Authorization") auth:String,
-        @Query("exam") exam:String,
-        @Query("paper") paper:String,
-        @Query("subject") subject:String,
-        @Query("topic") topic:String,
-    ):TopicStudyDto
+    @POST("mains/answers/typed") suspend fun submitTypedAnswer(@Header("Authorization") auth:String,@Body body:TypedAnswerRequest):AnswerSubmissionResponse
+    @Multipart @POST("mains/answers/upload") suspend fun uploadMainsAnswer(@Header("Authorization") auth:String,@Part("question_id") questionId:RequestBody,@Part file:MultipartBody.Part):AnswerSubmissionResponse
+    @GET("mains/answers") suspend fun mainsAnswerHistory(@Header("Authorization") auth:String):List<AnswerHistoryDto>
+    @GET("mains/answers/{submissionId}/evaluation") suspend fun mainsEvaluation(@Header("Authorization") auth:String,@Path("submissionId") submissionId:Int):AnswerEvaluationDto
 }
 
 object ApiClient{
-    val api:UpscApi by lazy{
-        Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(UpscApi::class.java)
-    }
+    val api:UpscApi by lazy{Retrofit.Builder().baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/").addConverterFactory(GsonConverterFactory.create()).build().create(UpscApi::class.java)}
     fun bearer(token:String)="Bearer $token"
 }
