@@ -27,6 +27,35 @@ class QuestionIn(BaseModel):
 class NoteIn(BaseModel):
     exam:str; paper:str=''; subject:str; topic:str; subtopic:str=''; title:str; file_type:str; file_url:str
 
+
+def _topic_is_loaded(exam:str,paper:str,subject:str,topic:str)->bool:
+    key=(exam or '').lower()
+    if key in {'prelims','mains'}:
+        for section in syllabus_for(key):
+            if section.get('paper')==paper and section.get('subject')==subject and topic in section.get('topics',[]):
+                return True
+        return False
+    if key=='optional':
+        for optional in syllabus_for('optional'):
+            if optional.get('subject')!=subject:
+                continue
+            for p in optional.get('papers',[]):
+                if p.get('paper')==paper and topic in p.get('topics',[]):
+                    return True
+        return False
+    return False
+
+
+def _coverage():
+    prelims=syllabus_for('prelims');mains=syllabus_for('mains');optionals=syllabus_for('optional')
+    optional_loaded=sum(1 for o in optionals if o.get('detailed_topics_loaded'))
+    return {
+        'prelims':{'sections':len(prelims),'sections_with_topics':sum(bool(x.get('topics')) for x in prelims),'complete_navigation':all(bool(x.get('topics')) for x in prelims)},
+        'mains':{'sections':len(mains),'sections_with_topics':sum(bool(x.get('topics')) for x in mains),'complete_navigation':all(bool(x.get('topics')) for x in mains)},
+        'optional':{'subjects':len(optionals),'subjects_with_detailed_topics':optional_loaded,'complete_navigation':optional_loaded==len(optionals)},
+    }
+
+
 def build_feature_router(current_user):
     router=APIRouter()
 
@@ -38,6 +67,10 @@ def build_feature_router(current_user):
     @router.get('/syllabus')
     def get_syllabus(exam:Optional[str]=None,u=Depends(current_user)):
         return syllabus_for(exam or 'all')
+
+    @router.get('/syllabus/coverage')
+    def syllabus_coverage(u=Depends(current_user)):
+        return _coverage()
 
     @router.get('/syllabus/{exam}')
     def get_exam_syllabus(exam:str,u=Depends(current_user)):
@@ -80,6 +113,8 @@ def build_feature_router(current_user):
 
     @router.post('/question-bank')
     def add_question(x:QuestionIn,u=Depends(require_admin)):
+        if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic):
+            raise HTTPException(status_code=422,detail='Question topic is not in the loaded UPSC syllabus. Load/verify syllabus first.')
         qid=save_unique_question(**x.model_dump())
         if not qid: raise HTTPException(status_code=409,detail='Duplicate or near-duplicate question blocked')
         return {'ok':True,'id':qid}
