@@ -1,0 +1,108 @@
+package com.upscprep.app
+
+import android.content.Context
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+
+class LauncherActivity:ComponentActivity(){
+    override fun onCreate(savedInstanceState:Bundle?){
+        super.onCreate(savedInstanceState)
+        setContent{MaterialTheme{UpscAppRoot(this)}}
+    }
+}
+
+@Composable
+fun UpscAppRoot(context:Context){
+    val prefs=remember{context.getSharedPreferences("upsc_session",Context.MODE_PRIVATE)}
+    var token by remember{mutableStateOf(prefs.getString("token","")?:"")}
+    var page by remember{mutableStateOf("home")}
+    var notesExam by remember{mutableStateOf("mains")}
+    var currentExam by remember{mutableStateOf("prelims")}
+    var studyTarget by remember{mutableStateOf<StudyTarget?>(null)}
+
+    if(token.isBlank()){
+        LoginScreen{newToken->
+            prefs.edit().putString("token",newToken).apply()
+            token=newToken
+        }
+        return
+    }
+
+    Scaffold(bottomBar={NavigationBar{
+        listOf("Home","Prelims","Mains","Optional").forEach{label->
+            NavigationBarItem(
+                selected=page.equals(label,true),
+                onClick={page=label.lowercase()},
+                icon={},
+                label={Text(label)}
+            )
+        }
+    }}){padding->
+        Box(Modifier.padding(padding).fillMaxSize()){
+            when(page){
+                "home"->HomeScreen(
+                    token,
+                    onPrelims={page="prelims"},
+                    onMains={page="mains"},
+                    onOptional={page="optional"},
+                    onLogout={prefs.edit().remove("token").apply();token=""}
+                )
+                "prelims"->SimpleSection(
+                    "PRELIMS",
+                    listOf("📚 पढ़ाई करें","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","🔄 Revision"),
+                    onItem={item->when{
+                        item.startsWith("📚")->page="prelims_syllabus"
+                        item.startsWith("📜")->page="prelims_pyq"
+                        item.startsWith("📰")->{currentExam="prelims";page="current_affairs"}
+                        item.startsWith("🗂")->{notesExam="prelims";page="class_notes"}
+                    }}
+                ){page="home"}
+                "mains"->SimpleSection(
+                    "MAINS",
+                    listOf("📚 GS / Essay पढ़ें","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","🔄 Revision"),
+                    onItem={item->when{
+                        item.startsWith("📚")->page="mains_syllabus"
+                        item.startsWith("📜")->page="mains_pyq"
+                        item.startsWith("📰")->{currentExam="mains";page="current_affairs"}
+                        item.startsWith("🗂")->{notesExam="mains";page="class_notes"}
+                    }}
+                ){page="home"}
+                "prelims_syllabus"->SyllabusScreen(
+                    token,"prelims","PRELIMS SYLLABUS",
+                    onTopic={row,topic->
+                        studyTarget=StudyTarget("prelims",row.paper,row.subject,topic)
+                        page="topic_study"
+                    }
+                ){page="prelims"}
+                "mains_syllabus"->SyllabusScreen(
+                    token,"mains","MAINS SYLLABUS",
+                    onTopic={row,topic->
+                        studyTarget=StudyTarget("mains",row.paper,row.subject,topic)
+                        page="topic_study"
+                    }
+                ){page="mains"}
+                "prelims_pyq"->PyqScreen(token,"prelims"){page="prelims"}
+                "mains_pyq"->PyqScreen(token,"mains"){page="mains"}
+                "current_affairs"->CurrentAffairsScreen(token,currentExam){
+                    page=if(currentExam=="prelims")"prelims" else "mains"
+                }
+                "optional"->OptionalScreen(token,onNotes={notesExam="optional";page="class_notes"}){page="home"}
+                "class_notes"->ClassNotesScreen(context,token,notesExam){
+                    page=when(notesExam){"prelims"->"prelims";"mains"->"mains";else->"optional"}
+                }
+                "topic_study"->studyTarget?.let{target->
+                    TopicStudyScreen(token,target){
+                        page=if(target.exam=="prelims")"prelims_syllabus" else "mains_syllabus"
+                    }
+                }
+            }
+        }
+    }
+}
