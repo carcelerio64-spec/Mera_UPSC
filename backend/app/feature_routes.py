@@ -12,12 +12,13 @@ from pydantic import BaseModel
 from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 from .study_system import SessionStudy, OPTIONAL_SUBJECTS, OptionalSelection, ClassNote, QuestionBank, save_unique_question
+from .syllabus_catalog import syllabus_for
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 UPLOAD_DIR=Path(os.getenv('UPLOAD_DIR','./uploads'))
 UPLOAD_DIR.mkdir(parents=True,exist_ok=True)
 MAX_UPLOAD_BYTES=20*1024*1024
-ALLOWED_EXTENSIONS={'.pdf','.jpg','.jpeg','.png','.webp'}
+ALLOWED_EXTENSIONS={'.pdf','.jpg','.jpeg','.png','.webp','.heic','.heif'}
 
 class OptionalIn(BaseModel):
     subject:str
@@ -33,6 +34,16 @@ def build_feature_router(current_user):
         if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:
             raise HTTPException(status_code=403,detail='Admin access required')
         return u
+
+    @router.get('/syllabus')
+    def get_syllabus(exam:Optional[str]=None,u=Depends(current_user)):
+        return syllabus_for(exam or 'all')
+
+    @router.get('/syllabus/{exam}')
+    def get_exam_syllabus(exam:str,u=Depends(current_user)):
+        if exam.lower() not in {'prelims','mains','optional'}:
+            raise HTTPException(status_code=404,detail='Unknown exam section')
+        return syllabus_for(exam)
 
     @router.get('/current-affairs/date-wise')
     def current_affairs_date_wise(subject:Optional[str]=None,date:Optional[str]=None,limit:int=50,u=Depends(current_user)):
@@ -70,7 +81,7 @@ def build_feature_router(current_user):
     @router.post('/question-bank')
     def add_question(x:QuestionIn,u=Depends(require_admin)):
         qid=save_unique_question(**x.model_dump())
-        if not qid: raise HTTPException(status_code=409,detail='Duplicate question blocked')
+        if not qid: raise HTTPException(status_code=409,detail='Duplicate or near-duplicate question blocked')
         return {'ok':True,'id':qid}
 
     @router.get('/question-bank/count')
@@ -81,19 +92,11 @@ def build_feature_router(current_user):
         finally:s.close()
 
     @router.post('/uploads/class-note')
-    async def upload_class_note(
-        file:UploadFile=File(...),
-        exam:str=Form(...),
-        subject:str=Form(...),
-        topic:str=Form(...),
-        title:str=Form(...),
-        paper:str=Form(''),
-        subtopic:str=Form(''),
-        u=Depends(current_user),
-    ):
+    async def upload_class_note(file:UploadFile=File(...),exam:str=Form(...),subject:str=Form(...),topic:str=Form(...),title:str=Form(...),paper:str=Form(''),subtopic:str=Form(''),u=Depends(current_user)):
         ext=Path(file.filename or '').suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS: raise HTTPException(status_code=400,detail='Only PDF/JPG/JPEG/PNG/WEBP allowed')
+        if ext not in ALLOWED_EXTENSIONS: raise HTTPException(status_code=400,detail='Only PDF/JPG/JPEG/PNG/WEBP/HEIC allowed')
         data=await file.read(MAX_UPLOAD_BYTES+1)
+        await file.close()
         if len(data)>MAX_UPLOAD_BYTES: raise HTTPException(status_code=413,detail='File too large. Maximum 20 MB')
         safe_base=re.sub(r'[^a-zA-Z0-9_-]+','-',Path(file.filename or 'note').stem).strip('-')[:60] or 'note'
         stored=f'u{u.id}_{uuid.uuid4().hex}_{safe_base}{ext}'
@@ -105,6 +108,8 @@ def build_feature_router(current_user):
             row=ClassNote(user_id=u.id,exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,title=title,file_type=file_type,file_url=file_url)
             s.add(row);s.commit();s.refresh(row)
             return {'ok':True,'id':row.id,'file_type':file_type,'file_url':file_url}
+        except Exception:
+            s.rollback();(UPLOAD_DIR/stored).unlink(missing_ok=True);raise
         finally:s.close()
 
     @router.get('/uploads/{stored_name}')
