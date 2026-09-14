@@ -26,6 +26,7 @@ data class OptionalSyllabusDto(val subject:String,val source_url:String? = null,
 data class PyqPaperDto(val title:String,val url:String,val kind:String? = null)
 data class PyqResponseDto(val source:String,val exam:String,val year:Int,val source_page:String,val papers:List<PyqPaperDto> = emptyList(),val note:String? = null)
 data class CurrentAffairDto(val id:Int,val source_name:String,val source_url:String,val title:String,val summary:String? = null,val subject:String,val prelims_relevance:String? = null,val mains_relevance:String? = null,val published_at:String? = null,val fetched_at:String? = null)
+data class WrongQuestionDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val question:String,val difficulty:String,val options:List<String> = emptyList(),val last_answer:String? = null,val attempted_at:String? = null)
 data class ClassNoteDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val subtopic:String,val title:String,val file_type:String,val file_url:String,val uploaded_at:String)
 data class UploadNoteResponse(val ok:Boolean,val id:Int,val file_type:String,val file_url:String)
 data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean = false,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val current_affairs:List<Map<String,Any?>> = emptyList())
@@ -58,6 +59,9 @@ interface UpscApi{
 
     @GET("current-affairs/date-wise")
     suspend fun currentAffairs(@Header("Authorization") auth:String,@Query("date") date:String,@Query("subject") subject:String? = null,@Query("limit") limit:Int = 100):List<CurrentAffairDto>
+
+    @GET("wrong-questions")
+    suspend fun wrongQuestions(@Header("Authorization") auth:String,@Query("limit") limit:Int = 200):List<WrongQuestionDto>
 
     @GET("class-notes")
     suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
