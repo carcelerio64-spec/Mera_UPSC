@@ -15,6 +15,7 @@ from .study_system import SessionStudy, OPTIONAL_SUBJECTS, OptionalSelection, Cl
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import get_optional_subject, optional_topic_is_verified, optional_coverage
 from .study_routes import build_study_router
+from .ai_teacher_routes import build_ai_teacher_router
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 UPLOAD_DIR=Path(os.getenv('UPLOAD_DIR','./uploads'))
@@ -187,4 +188,5 @@ def build_feature_router(current_user):
         finally:s.close()
 
     router.include_router(build_study_router(current_user))
+    router.include_router(build_ai_teacher_router(current_user))
     return router
