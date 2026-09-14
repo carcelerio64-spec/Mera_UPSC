@@ -58,7 +58,7 @@ fun UpscAppRoot(context:Context){
                 "wrong_questions"->WrongQuestionsScreen(token,wrongExam){page=if(wrongExam=="prelims")"prelims" else "mains"}
                 "optional"->OptionalScreen(token,onNotes={notesExam="optional";page="class_notes"}){page="home"}
                 "class_notes"->ClassNotesScreen(context,token,notesExam){page=when(notesExam){"prelims"->"prelims";"mains"->"mains";else->"optional"}}
-                "topic_study"->studyTarget?.let{target->TopicStudyScreen(token,target){page=if(target.exam=="prelims")"prelims_syllabus" else "mains_syllabus"}}
+                "topic_study"->studyTarget?.let{target->TopicStudyV2Screen(token,target){page=if(target.exam=="prelims")"prelims_syllabus" else "mains_syllabus"}}
                 "completed_practice"->CompletedPracticeScreen(token,practiceExam,onBack={page=if(practiceExam=="prelims")"prelims" else "mains"},onOpenSection={selectedSection=it;page="topic_questions"})
                 "topic_questions"->selectedSection?.let{section->TopicQuestionListScreen(token,section,onBack={page="completed_practice"},onWriteAnswer={q->answerQuestion=q;page="mains_answer"})}
                 "mains_answer"->answerQuestion?.let{q->MainsAnswerWritingScreen(context,token,q){page="topic_questions"}}
