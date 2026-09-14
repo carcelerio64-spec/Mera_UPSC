@@ -1,7 +1,9 @@
 import hashlib
+import json
 import re
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy import create_engine, String, Integer, DateTime, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 import os
@@ -25,6 +27,19 @@ class QuestionBank(StudyBase):
     difficulty:Mapped[str]=mapped_column(String(30),default='moderate')
     source:Mapped[str]=mapped_column(String(300),default='AI-generated')
     created_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
+
+class QuestionDetail(StudyBase):
+    __tablename__='question_details'
+    id:Mapped[int]=mapped_column(primary_key=True)
+    question_id:Mapped[int]=mapped_column(Integer,unique=True,index=True)
+    question_type:Mapped[str]=mapped_column(String(30),default='mains')
+    options_json:Mapped[str]=mapped_column(Text,default='[]')
+    correct_answer:Mapped[str]=mapped_column(Text,default='')
+    explanation:Mapped[str]=mapped_column(Text,default='')
+    marks:Mapped[int]=mapped_column(Integer,default=0)
+    word_limit:Mapped[int]=mapped_column(Integer,default=0)
+    model_outline:Mapped[str]=mapped_column(Text,default='')
+    updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 
 class OptionalSelection(StudyBase):
     __tablename__='optional_selections'
@@ -94,4 +109,40 @@ def save_unique_question(exam,paper,subject,topic,question,subtopic='',difficult
         s.add(row);s.commit();s.refresh(row);return row.id
     except Exception:
         s.rollback();return None
+    finally:s.close()
+
+def save_question_detail(question_id:int,question_type:str='mains',options=None,correct_answer:str='',explanation:str='',marks:int=0,word_limit:int=0,model_outline:str=''):
+    s=SessionStudy()
+    try:
+        if not s.get(QuestionBank,question_id):return False
+        row=s.query(QuestionDetail).filter(QuestionDetail.question_id==question_id).first()
+        if not row:
+            row=QuestionDetail(question_id=question_id);s.add(row)
+        row.question_type=question_type
+        row.options_json=json.dumps(options or [],ensure_ascii=False)
+        row.correct_answer=correct_answer or ''
+        row.explanation=explanation or ''
+        row.marks=max(0,int(marks or 0))
+        row.word_limit=max(0,int(word_limit or 0))
+        row.model_outline=model_outline or ''
+        row.updated_at=datetime.now(timezone.utc)
+        s.commit();return True
+    except Exception:
+        s.rollback();return False
+    finally:s.close()
+
+def question_detail_map(question_ids):
+    ids=[int(x) for x in question_ids if x is not None]
+    if not ids:return {}
+    s=SessionStudy()
+    try:
+        out={}
+        for r in s.query(QuestionDetail).filter(QuestionDetail.question_id.in_(ids)).all():
+            try:options=json.loads(r.options_json or '[]')
+            except Exception:options=[]
+            out[r.question_id]={
+                'question_type':r.question_type,'options':options,'correct_answer':r.correct_answer,
+                'explanation':r.explanation,'marks':r.marks,'word_limit':r.word_limit,'model_outline':r.model_outline,
+            }
+        return out
     finally:s.close()
