@@ -129,9 +129,66 @@ fun TopicStudyScreen(token:String,target:StudyTarget,back:()->Unit){
 
 @Composable
 fun OptionalScreen(token:String,onNotes:()->Unit,back:()->Unit){
-    val scope=rememberCoroutineScope();var subjects by remember{mutableStateOf<List<String>>(emptyList())};var selected by remember{mutableStateOf("")};var expanded by remember{mutableStateOf(false)};var message by remember{mutableStateOf("")}
-    LaunchedEffect(token){try{subjects=ApiClient.api.optionalSubjects(ApiClient.bearer(token));selected=ApiClient.api.optionalSelection(ApiClient.bearer(token)).subject?:""}catch(_:Exception){message="Optional data load नहीं हुआ"}}
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)){TextButton(onClick=back){Text("← OPTIONAL",style=MaterialTheme.typography.titleLarge)};Text("अपना एक Optional चुनें",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Box(Modifier.fillMaxWidth().padding(vertical=12.dp)){OutlinedButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text(if(selected.isBlank())"Optional Subject चुनें" else selected)};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}){subjects.forEach{s->DropdownMenuItem(text={Text(s)},onClick={selected=s;expanded=false})}}};Button(enabled=selected.isNotBlank(),onClick={scope.launch{try{ApiClient.api.saveOptional(ApiClient.bearer(token),OptionalSaveRequest(selected));message="Optional save हो गया"}catch(_:Exception){message="Optional save नहीं हुआ"}}},modifier=Modifier.fillMaxWidth()){Text("Optional Save करें")};if(message.isNotBlank())Text(message,modifier=Modifier.padding(vertical=10.dp));if(selected.isNotBlank()){Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){Column(Modifier.padding(18.dp)){Text("$selected Paper-I",fontWeight=FontWeight.Bold);Text("Official detailed syllabus load होने पर topics यहीं खुलेंगे")}};Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){Column(Modifier.padding(18.dp)){Text("$selected Paper-II",fontWeight=FontWeight.Bold);Text("Official detailed syllabus load होने पर topics यहीं खुलेंगे")}};Button(onClick=onNotes,modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("🗂 Optional Class Notes")}}}
+    val scope=rememberCoroutineScope()
+    var subjects by remember{mutableStateOf<List<String>>(emptyList())}
+    var selected by remember{mutableStateOf("")}
+    var expanded by remember{mutableStateOf(false)}
+    var message by remember{mutableStateOf("")}
+    var syllabus by remember{mutableStateOf<OptionalSyllabusDto?>(null)}
+    var loading by remember{mutableStateOf(false)}
+
+    suspend fun loadSyllabus(subject:String){
+        if(subject.isBlank()){syllabus=null;return}
+        loading=true
+        try{syllabus=ApiClient.api.optionalSyllabus(subject,ApiClient.bearer(token))}
+        catch(_:Exception){syllabus=null;message="Optional syllabus load नहीं हुआ"}
+        finally{loading=false}
+    }
+
+    LaunchedEffect(token){
+        try{
+            subjects=ApiClient.api.optionalSubjects(ApiClient.bearer(token))
+            selected=ApiClient.api.optionalSelection(ApiClient.bearer(token)).subject?:""
+            if(selected.isNotBlank())loadSyllabus(selected)
+        }catch(_:Exception){message="Optional data load नहीं हुआ"}
+    }
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)){
+        TextButton(onClick=back){Text("← OPTIONAL",style=MaterialTheme.typography.titleLarge)}
+        Text("अपना एक Optional चुनें",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+        Box(Modifier.fillMaxWidth().padding(vertical=12.dp)){
+            OutlinedButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text(if(selected.isBlank())"Optional Subject चुनें" else selected)}
+            DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}){
+                subjects.forEach{s->DropdownMenuItem(text={Text(s)},onClick={selected=s;expanded=false;message="";scope.launch{loadSyllabus(s)}})}
+            }
+        }
+        Button(enabled=selected.isNotBlank(),onClick={scope.launch{
+            try{ApiClient.api.saveOptional(ApiClient.bearer(token),OptionalSaveRequest(selected));message="Optional save हो गया";loadSyllabus(selected)}
+            catch(_:Exception){message="Optional save नहीं हुआ"}
+        }},modifier=Modifier.fillMaxWidth()){Text("Optional Save करें")}
+        if(message.isNotBlank())Text(message,modifier=Modifier.padding(vertical=10.dp))
+        if(loading)LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical=8.dp))
+        syllabus?.let{syl->
+            Card(Modifier.fillMaxWidth().padding(vertical=8.dp)){
+                Column(Modifier.padding(16.dp)){
+                    Text(if(syl.complete)"पूरा verified syllabus loaded" else "Verified syllabus अभी पूरा load नहीं हुआ है",fontWeight=FontWeight.Bold)
+                    if(!syl.complete)Text("अधूरे syllabus पर question generation locked रहेगा।")
+                }
+            }
+            syl.papers.forEach{paper->
+                Card(Modifier.fillMaxWidth().padding(vertical=6.dp)){
+                    Column(Modifier.padding(18.dp)){
+                        Text("${syl.subject} ${paper.paper}",fontWeight=FontWeight.Bold)
+                        Text(if(paper.fully_verified)"Verified" else "Verification pending",style=MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.height(8.dp))
+                        if(paper.topics.isEmpty())Text("इस paper के verified topics अभी load नहीं हुए हैं।")
+                        else paper.topics.forEachIndexed{i,t->Text("${i+1}. $t",modifier=Modifier.padding(vertical=5.dp))}
+                    }
+                }
+            }
+            Button(onClick=onNotes,modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("🗂 Optional Class Notes")}
+        }
+    }
 }
 
 @Composable
