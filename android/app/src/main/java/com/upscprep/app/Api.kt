@@ -16,15 +16,16 @@ import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-
 data class TokenResponse(val access_token:String,val token_type:String)
 data class DashboardDto(val name:String,val target_year:Int,val overall_progress:Int,val revision_due:Int,val today_topics:Int,val continue_learning:String)
 data class SyllabusSectionDto(val paper:String,val subject:String,val topics:List<String> = emptyList())
 data class OptionalSelectionDto(val subject:String? = null)
 data class OptionalSaveRequest(val subject:String)
+data class OptionalPaperDto(val paper:String,val topics:List<String> = emptyList(),val fully_verified:Boolean = false)
+data class OptionalSyllabusDto(val subject:String,val source_url:String? = null,val pyq_source_url:String? = null,val complete:Boolean = false,val papers:List<OptionalPaperDto> = emptyList())
 data class ClassNoteDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val subtopic:String,val title:String,val file_type:String,val file_url:String,val uploaded_at:String)
 data class UploadNoteResponse(val ok:Boolean,val id:Int,val file_type:String,val file_url:String)
-data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val current_affairs:List<Map<String,Any?>> = emptyList())
+data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean = false,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val current_affairs:List<Map<String,Any?>> = emptyList())
 
 interface UpscApi{
     @FormUrlEncoded
@@ -45,6 +46,9 @@ interface UpscApi{
 
     @PUT("optional/selection")
     suspend fun saveOptional(@Header("Authorization") auth:String,@Body body:OptionalSaveRequest):OptionalSelectionDto
+
+    @GET("optional/syllabus/{subject}")
+    suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
 
     @GET("class-notes")
     suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
