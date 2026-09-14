@@ -97,6 +97,47 @@ def build_study_router(current_user):
         finally:
             s.close()
 
+    @router.get('/question-bank/topic')
+    def topic_questions(
+        exam:str,
+        paper:str,
+        subject:str,
+        topic:str,
+        difficulty:Optional[str]=None,
+        limit:int=100,
+        u=Depends(current_user),
+    ):
+        if not _valid_topic(exam,paper,subject,topic):
+            raise HTTPException(status_code=404,detail='Topic is not in the loaded verified syllabus')
+        s=SessionStudy()
+        try:
+            q=s.query(QuestionBank).filter(
+                QuestionBank.exam==exam,
+                QuestionBank.paper==paper,
+                QuestionBank.subject==subject,
+                QuestionBank.topic==topic,
+            )
+            if difficulty:
+                q=q.filter(QuestionBank.difficulty==difficulty)
+            rows=q.order_by(QuestionBank.id.asc()).limit(max(1,min(limit,200))).all()
+            return [
+                {
+                    'id':r.id,
+                    'exam':r.exam,
+                    'paper':r.paper,
+                    'subject':r.subject,
+                    'topic':r.topic,
+                    'subtopic':r.subtopic,
+                    'question':r.question,
+                    'difficulty':r.difficulty,
+                    'source':r.source,
+                    'created_at':r.created_at.isoformat(),
+                }
+                for r in rows
+            ]
+        finally:
+            s.close()
+
     @router.get('/pyq')
     def official_pyq(exam:str='mains',year:int=2026,subject:Optional[str]=None,u=Depends(current_user)):
         if exam not in {'prelims','mains'}:
