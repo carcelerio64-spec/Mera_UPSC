@@ -3,7 +3,6 @@ import json
 import re
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
-from typing import Optional
 from sqlalchemy import create_engine, String, Integer, DateTime, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 import os
@@ -41,6 +40,15 @@ class QuestionDetail(StudyBase):
     model_outline:Mapped[str]=mapped_column(Text,default='')
     updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 
+class QuestionAttempt(StudyBase):
+    __tablename__='question_attempts'
+    id:Mapped[int]=mapped_column(primary_key=True)
+    user_id:Mapped[int]=mapped_column(Integer,index=True)
+    question_id:Mapped[int]=mapped_column(Integer,index=True)
+    answer_text:Mapped[str]=mapped_column(Text,default='')
+    result_code:Mapped[int]=mapped_column(Integer,default=-1)  # -1 ungraded, 0 wrong, 1 correct
+    attempted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
+
 class OptionalSelection(StudyBase):
     __tablename__='optional_selections'
     id:Mapped[int]=mapped_column(primary_key=True)
@@ -74,17 +82,14 @@ def normalize_question(text:str)->str:
 def question_hash(text:str)->str:
     return hashlib.sha256(normalize_question(text).encode('utf-8')).hexdigest()
 
-def _token_set(text:str):
-    return {x for x in normalize_question(text).split() if len(x)>1}
-
+def _token_set(text:str):return {x for x in normalize_question(text).split() if len(x)>1}
 def _near_duplicate(a:str,b:str)->bool:
     na,nb=normalize_question(a),normalize_question(b)
     if not na or not nb:return False
     if SequenceMatcher(None,na,nb).ratio()>=0.90:return True
     ta,tb=_token_set(na),_token_set(nb)
     if ta and tb:
-        j=len(ta & tb)/max(1,len(ta | tb))
-        containment=len(ta & tb)/max(1,min(len(ta),len(tb)))
+        j=len(ta & tb)/max(1,len(ta | tb));containment=len(ta & tb)/max(1,min(len(ta),len(tb)))
         if j>=0.82 or (containment>=0.90 and SequenceMatcher(None,na,nb).ratio()>=0.78):return True
     return False
 
@@ -101,14 +106,12 @@ def find_duplicate_question(question:str,exam:str=None):
     finally:s.close()
 
 def save_unique_question(exam,paper,subject,topic,question,subtopic='',difficulty='moderate',source='AI-generated'):
-    dup=find_duplicate_question(question,exam)
-    if dup:return None
+    if find_duplicate_question(question,exam):return None
     h=question_hash(question);s=SessionStudy()
     try:
         row=QuestionBank(exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,question=question,normalized_hash=h,difficulty=difficulty,source=source)
         s.add(row);s.commit();s.refresh(row);return row.id
-    except Exception:
-        s.rollback();return None
+    except Exception:s.rollback();return None
     finally:s.close()
 
 def save_question_detail(question_id:int,question_type:str='mains',options=None,correct_answer:str='',explanation:str='',marks:int=0,word_limit:int=0,model_outline:str=''):
@@ -116,19 +119,10 @@ def save_question_detail(question_id:int,question_type:str='mains',options=None,
     try:
         if not s.get(QuestionBank,question_id):return False
         row=s.query(QuestionDetail).filter(QuestionDetail.question_id==question_id).first()
-        if not row:
-            row=QuestionDetail(question_id=question_id);s.add(row)
-        row.question_type=question_type
-        row.options_json=json.dumps(options or [],ensure_ascii=False)
-        row.correct_answer=correct_answer or ''
-        row.explanation=explanation or ''
-        row.marks=max(0,int(marks or 0))
-        row.word_limit=max(0,int(word_limit or 0))
-        row.model_outline=model_outline or ''
-        row.updated_at=datetime.now(timezone.utc)
+        if not row:row=QuestionDetail(question_id=question_id);s.add(row)
+        row.question_type=question_type;row.options_json=json.dumps(options or [],ensure_ascii=False);row.correct_answer=correct_answer or '';row.explanation=explanation or '';row.marks=max(0,int(marks or 0));row.word_limit=max(0,int(word_limit or 0));row.model_outline=model_outline or '';row.updated_at=datetime.now(timezone.utc)
         s.commit();return True
-    except Exception:
-        s.rollback();return False
+    except Exception:s.rollback();return False
     finally:s.close()
 
 def question_detail_map(question_ids):
@@ -140,9 +134,14 @@ def question_detail_map(question_ids):
         for r in s.query(QuestionDetail).filter(QuestionDetail.question_id.in_(ids)).all():
             try:options=json.loads(r.options_json or '[]')
             except Exception:options=[]
-            out[r.question_id]={
-                'question_type':r.question_type,'options':options,'correct_answer':r.correct_answer,
-                'explanation':r.explanation,'marks':r.marks,'word_limit':r.word_limit,'model_outline':r.model_outline,
-            }
+            out[r.question_id]={'question_type':r.question_type,'options':options,'correct_answer':r.correct_answer,'explanation':r.explanation,'marks':r.marks,'word_limit':r.word_limit,'model_outline':r.model_outline}
         return out
+    finally:s.close()
+
+def save_attempt(user_id:int,question_id:int,answer_text:str,result_code:int):
+    s=SessionStudy()
+    try:
+        if not s.get(QuestionBank,question_id):return None
+        row=QuestionAttempt(user_id=user_id,question_id=question_id,answer_text=answer_text or '',result_code=result_code,attempted_at=datetime.now(timezone.utc));s.add(row);s.commit();s.refresh(row);return row.id
+    except Exception:s.rollback();return None
     finally:s.close()
