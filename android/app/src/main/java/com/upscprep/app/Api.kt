@@ -23,6 +23,8 @@ data class OptionalSelectionDto(val subject:String? = null)
 data class OptionalSaveRequest(val subject:String)
 data class OptionalPaperDto(val paper:String,val topics:List<String> = emptyList(),val fully_verified:Boolean = false)
 data class OptionalSyllabusDto(val subject:String,val source_url:String? = null,val pyq_source_url:String? = null,val complete:Boolean = false,val papers:List<OptionalPaperDto> = emptyList())
+data class PyqPaperDto(val title:String,val url:String,val kind:String? = null)
+data class PyqResponseDto(val source:String,val exam:String,val year:Int,val source_page:String,val papers:List<PyqPaperDto> = emptyList(),val note:String? = null)
 data class ClassNoteDto(val id:Int,val exam:String,val paper:String,val subject:String,val topic:String,val subtopic:String,val title:String,val file_type:String,val file_url:String,val uploaded_at:String)
 data class UploadNoteResponse(val ok:Boolean,val id:Int,val file_type:String,val file_url:String)
 data class TopicStudyDto(val exam:String,val paper:String,val subject:String,val topic:String,val official_syllabus_match:Boolean = false,val class_notes:List<ClassNoteDto> = emptyList(),val question_bank_count:Int = 0,val current_affairs:List<Map<String,Any?>> = emptyList())
@@ -49,6 +51,9 @@ interface UpscApi{
 
     @GET("optional/syllabus/{subject}")
     suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
+
+    @GET("pyq")
+    suspend fun pyq(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("year") year:Int,@Query("subject") subject:String? = null):PyqResponseDto
 
     @GET("class-notes")
     suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
