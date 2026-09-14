@@ -43,7 +43,7 @@ from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 pwd=CryptContext(schemes=['bcrypt'],deprecated='auto')
 oauth2=OAuth2PasswordBearer(tokenUrl='/auth/token')
-app=FastAPI(title='UPSC Prep API',version='1.2.0')
+app=FastAPI(title='UPSC Prep API',version='1.3.0')
 app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 
 def db():
@@ -120,4 +120,6 @@ def dashboard(u:User=Depends(current_user),s:Session=Depends(db)):
     return {'name':u.name,'target_year':u.target_year,'overall_progress':round(done/max(1,total)*100),'revision_due':sum(1 for p in ps if p.status=='revision_due'),'today_topics':3,'continue_learning':'मौलिक अधिकार'}
 
 from .feature_routes import build_feature_router
+from .topic_routes import build_topic_router
 app.include_router(build_feature_router(current_user))
+app.include_router(build_topic_router(current_user))
