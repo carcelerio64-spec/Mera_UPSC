@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from .current_affairs import list_items
@@ -24,13 +22,7 @@ def build_study_router(current_user):
     router=APIRouter()
 
     @router.get('/study/topic')
-    def topic_study(
-        exam:str,
-        paper:str,
-        subject:str,
-        topic:str,
-        u=Depends(current_user),
-    ):
+    def topic_study(exam:str,paper:str,subject:str,topic:str,u=Depends(current_user)):
         if not _valid_topic(exam,paper,subject,topic):
             raise HTTPException(status_code=404,detail='Topic is not in the loaded verified syllabus')
         s=SessionStudy()
@@ -41,22 +33,27 @@ def build_study_router(current_user):
                 ClassNote.subject==subject,
                 ClassNote.topic==topic,
             ).order_by(ClassNote.uploaded_at.desc()).all()
-            q=s.query(QuestionBank).filter(
+            question_count=s.query(QuestionBank).filter(
                 QuestionBank.exam==exam,
                 QuestionBank.paper==paper,
                 QuestionBank.subject==subject,
                 QuestionBank.topic==topic,
-            )
-            question_count=q.count()
+            ).count()
             return {
                 'exam':exam,
                 'paper':paper,
                 'subject':subject,
                 'topic':topic,
+                'official_syllabus_match':True,
                 'question_bank_count':question_count,
                 'class_notes':[
                     {
                         'id':n.id,
+                        'exam':n.exam,
+                        'paper':n.paper,
+                        'subject':n.subject,
+                        'topic':n.topic,
+                        'subtopic':n.subtopic,
                         'title':n.title,
                         'file_type':n.file_type,
                         'file_url':n.file_url,
