@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,6 +9,7 @@ from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
 
+ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 CA_SUBJECT_MAP={
     'Current Affairs':'समसामयिकी',
     'History & Culture':'इतिहास एवं संस्कृति',
@@ -44,6 +46,10 @@ def _valid_topic(exam: str, paper: str, subject: str, topic: str) -> bool:
 
 def build_study_router(current_user):
     router=APIRouter()
+
+    @router.get('/admin/status')
+    def admin_status(u=Depends(current_user)):
+        return {'is_admin':bool(ADMIN_EMAILS and u.email.lower() in ADMIN_EMAILS)}
 
     @router.get('/study/topic')
     def topic_study(exam:str,paper:str,subject:str,topic:str,u=Depends(current_user)):
