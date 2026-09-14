@@ -3,7 +3,7 @@ import json
 import re
 from difflib import SequenceMatcher
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, String, Integer, DateTime, Text
+from sqlalchemy import create_engine, String, Integer, DateTime, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 import os
 
@@ -46,8 +46,19 @@ class QuestionAttempt(StudyBase):
     user_id:Mapped[int]=mapped_column(Integer,index=True)
     question_id:Mapped[int]=mapped_column(Integer,index=True)
     answer_text:Mapped[str]=mapped_column(Text,default='')
-    result_code:Mapped[int]=mapped_column(Integer,default=-1)  # -1 ungraded, 0 wrong, 1 correct
+    result_code:Mapped[int]=mapped_column(Integer,default=-1)
     attempted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
+
+class CompletedTopic(StudyBase):
+    __tablename__='completed_topics'
+    __table_args__=(UniqueConstraint('user_id','exam','paper','subject','topic',name='uq_user_completed_topic'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    user_id:Mapped[int]=mapped_column(Integer,index=True)
+    exam:Mapped[str]=mapped_column(String(30),index=True)
+    paper:Mapped[str]=mapped_column(String(80),index=True)
+    subject:Mapped[str]=mapped_column(String(160),index=True)
+    topic:Mapped[str]=mapped_column(String(240),index=True)
+    completed_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
 
 class OptionalSelection(StudyBase):
     __tablename__='optional_selections'
