@@ -1,5 +1,6 @@
 import React,{useEffect,useState}from'react';
 import{createRoot}from'react-dom/client';
+import Pyq from'./Pyq.jsx';
 import'./style.css';
 
 const API=import.meta.env.VITE_API_BASE_URL||'http://localhost:8000';
@@ -15,10 +16,12 @@ function App(){
  const openTopic=(exam,row,topic)=>{setTarget({exam,paper:row.paper,subject:row.subject,topic});setP('topicStudy')};
  return <div className="shell"><header><b>UPSC Prep</b><button className="icon" onClick={()=>setM(!menu)}>☰</button>{menu&&<div className="menu"><button onClick={()=>setP('optional')}>🎓 Optional</button><button onClick={()=>setP('notes')}>🗂 Class Notes</button><button>🔖 Bookmarks</button><button>📊 Progress</button><button>⚙ Settings</button><button onClick={()=>{localStorage.removeItem('token');location.reload()}}>🚪 Logout</button></div>}</header><main>
  {page==='home'&&<><h2>नमस्ते, {dash?.name||'User'}</h2><div className="today"><b>आज की पढ़ाई</b><span>{dash?.today_topics||0} Topics बाकी</span><button>पढ़ाई शुरू करें</button></div><button className="hero" onClick={()=>setP('prelims')}><strong>PRELIMS</strong><span>पढ़ाई • MCQ • Mock Test</span></button><button className="hero" onClick={()=>setP('mains')}><strong>MAINS</strong><span>पढ़ाई • Answer • PDF Test</span></button><button className="hero small" onClick={()=>setP('optional')}><strong>OPTIONAL</strong><span>एक Optional चुनें • Paper-I • Paper-II</span></button><button className="simpleCard" onClick={()=>setP('current')}>📰 आज के Current Affairs देखें</button><button className="simpleCard" onClick={()=>setP('notes')}>🗂 Class Notes</button><div className="continue"><b>जहाँ छोड़ा था वहीं से पढ़ें</b><span>{dash?.continue_learning}</span></div><div className="row"><span>Progress: {dash?.overall_progress||0}%</span><span>Revision Due: {dash?.revision_due||0}</span></div></>}
- {page==='prelims'&&<Section title="PRELIMS" back={()=>setP('home')} items={[['📚 पढ़ाई करें',()=>setP('prelimsSyllabus')],['🧠 Practice'],['⏱ Mock Test'],['📰 Current Affairs',()=>setP('current')],['🗂 Class Notes',()=>setP('notes')],['🔄 Revision']]}/>} 
- {page==='mains'&&<Section title="MAINS" back={()=>setP('home')} items={[['📚 GS / Essay पढ़ें',()=>setP('mainsSyllabus')],['✍ Answer Writing'],['📄 Test / PDF Paper'],['📰 Mains Current Affairs',()=>setP('current')],['🗂 Class Notes',()=>setP('notes')],['🔄 Revision']]}/>} 
+ {page==='prelims'&&<Section title="PRELIMS" back={()=>setP('home')} items={[['📚 पढ़ाई करें',()=>setP('prelimsSyllabus')],['🧠 Practice'],['⏱ Mock Test'],['📜 PYQ',()=>setP('prelimsPyq')],['📰 Current Affairs',()=>setP('current')],['🗂 Class Notes',()=>setP('notes')],['🔄 Revision']]}/>} 
+ {page==='mains'&&<Section title="MAINS" back={()=>setP('home')} items={[['📚 GS / Essay पढ़ें',()=>setP('mainsSyllabus')],['✍ Answer Writing'],['📄 Test / PDF Paper'],['📜 PYQ',()=>setP('mainsPyq')],['📰 Mains Current Affairs',()=>setP('current')],['🗂 Class Notes',()=>setP('notes')],['🔄 Revision']]}/>} 
  {page==='prelimsSyllabus'&&<Syllabus exam="prelims" title="PRELIMS SYLLABUS" back={()=>setP('prelims')} onTopic={(row,t)=>openTopic('prelims',row,t)}/>} 
  {page==='mainsSyllabus'&&<Syllabus exam="mains" title="MAINS SYLLABUS" back={()=>setP('mains')} onTopic={(row,t)=>openTopic('mains',row,t)}/>} 
+ {page==='prelimsPyq'&&<Pyq api={api} exam="prelims" back={()=>setP('prelims')}/>} 
+ {page==='mainsPyq'&&<Pyq api={api} exam="mains" back={()=>setP('mains')}/>} 
  {page==='topicStudy'&&target&&<TopicStudy target={target} back={()=>setP(target.exam==='prelims'?'prelimsSyllabus':'mainsSyllabus')}/>} 
  {page==='optional'&&<Optional back={()=>setP('home')}/>} {page==='current'&&<CurrentAffairs back={()=>setP('home')}/>} {page==='notes'&&<ClassNotes back={()=>setP('home')}/>} 
  </main><nav><button onClick={()=>setP('home')}>Home</button><button onClick={()=>setP('prelims')}>Prelims</button><button onClick={()=>setP('mains')}>Mains</button><button onClick={()=>setP('optional')}>Optional</button></nav></div>
