@@ -9,6 +9,7 @@ from .study_system import SessionStudy, ClassNote, QuestionBank, QuestionAttempt
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
+from .exam_routes import build_exam_router
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 CA_SUBJECT_MAP={
@@ -140,4 +141,5 @@ def build_study_router(current_user):
         if year<2011 or year>2100:raise HTTPException(status_code=400,detail='Invalid year')
         return fetch_official_pyq(exam=exam,year=year,subject=subject)
 
+    router.include_router(build_exam_router(current_user))
     return router
