@@ -18,7 +18,8 @@ class LauncherActivity:ComponentActivity(){
 @Composable
 fun UpscAppRoot(context:Context){
     val prefs=remember{context.getSharedPreferences("upsc_session",Context.MODE_PRIVATE)}
-    var token by remember{mutableStateOf(prefs.getString("token","")?:"")}
+    val savedToken=remember{prefs.getString("token","")?:""}
+    var token by remember{mutableStateOf(if(savedToken==DemoMode.TOKEN&&!DemoMode.ENABLED)"" else savedToken)}
     var page by remember{mutableStateOf("home")}
     var notesExam by remember{mutableStateOf("mains")}
     var currentExam by remember{mutableStateOf("prelims")}
@@ -30,28 +31,15 @@ fun UpscAppRoot(context:Context){
 
     if(token.isBlank()){AuthScreen{newToken->prefs.edit().putString("token",newToken).apply();token=newToken};return}
 
+    val demo=DemoMode.ENABLED&&token==DemoMode.TOKEN
     Scaffold(bottomBar={NavigationBar{listOf("Home","Prelims","Mains","Optional").forEach{label->NavigationBarItem(selected=page.equals(label,true),onClick={page=label.lowercase()},icon={},label={Text(label)})}}}){padding->
         Box(Modifier.padding(padding).fillMaxSize()){
-            when(page){
+            if(demo){
+                DemoHomeScreen(onLogout={prefs.edit().remove("token").apply();token=""})
+            }else when(page){
                 "home"->HomeScreen(token,onPrelims={page="prelims"},onMains={page="mains"},onOptional={page="optional"},onLogout={prefs.edit().remove("token").apply();token=""})
-                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🤖 AI Teacher","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
-                    item.startsWith("📚")->page="prelims_syllabus"
-                    item.startsWith("🤖")->page="ai_teacher"
-                    item.startsWith("🧠")->{practiceExam="prelims";page="completed_practice"}
-                    item.startsWith("📜")->page="prelims_pyq"
-                    item.startsWith("📰")->{currentExam="prelims";page="current_affairs"}
-                    item.startsWith("🗂")->{notesExam="prelims";page="class_notes"}
-                    item.startsWith("❌")->{wrongExam="prelims";page="wrong_questions"}
-                }}){page="home"}
-                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","🤖 AI Teacher","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{
-                    item.startsWith("📚")->page="mains_syllabus"
-                    item.startsWith("🤖")->page="ai_teacher"
-                    item.startsWith("✍")->{practiceExam="mains";page="completed_practice"}
-                    item.startsWith("📜")->page="mains_pyq"
-                    item.startsWith("📰")->{currentExam="mains";page="current_affairs"}
-                    item.startsWith("🗂")->{notesExam="mains";page="class_notes"}
-                    item.startsWith("❌")->{wrongExam="mains";page="wrong_questions"}
-                }}){page="home"}
+                "prelims"->SimpleSection("PRELIMS",listOf("📚 पढ़ाई करें","🤖 AI Teacher","🧠 Practice","⏱ Mock Test","📜 PYQ","📰 Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="prelims_syllabus";item.startsWith("🤖")->page="ai_teacher";item.startsWith("🧠")->{practiceExam="prelims";page="completed_practice"};item.startsWith("📜")->page="prelims_pyq";item.startsWith("📰")->{currentExam="prelims";page="current_affairs"};item.startsWith("🗂")->{notesExam="prelims";page="class_notes"};item.startsWith("❌")->{wrongExam="prelims";page="wrong_questions"}}}){page="home"}
+                "mains"->SimpleSection("MAINS",listOf("📚 GS / Essay पढ़ें","🤖 AI Teacher","✍ Answer Writing","📄 Test / PDF Paper","📜 PYQ","📰 Mains Current Affairs","🗂 Class Notes","❌ Wrong Questions","🔄 Revision"),onItem={item->when{item.startsWith("📚")->page="mains_syllabus";item.startsWith("🤖")->page="ai_teacher";item.startsWith("✍")->{practiceExam="mains";page="completed_practice"};item.startsWith("📜")->page="mains_pyq";item.startsWith("📰")->{currentExam="mains";page="current_affairs"};item.startsWith("🗂")->{notesExam="mains";page="class_notes"};item.startsWith("❌")->{wrongExam="mains";page="wrong_questions"}}}){page="home"}
                 "prelims_syllabus"->SyllabusScreen(token,"prelims","PRELIMS SYLLABUS",onTopic={row,topic->studyTarget=StudyTarget("prelims",row.paper,row.subject,topic);page="topic_study"}){page="prelims"}
                 "mains_syllabus"->SyllabusScreen(token,"mains","MAINS SYLLABUS",onTopic={row,topic->studyTarget=StudyTarget("mains",row.paper,row.subject,topic);page="topic_study"}){page="mains"}
                 "prelims_pyq"->PyqScreen(token,"prelims"){page="prelims"}
@@ -67,5 +55,15 @@ fun UpscAppRoot(context:Context){
                 "ai_teacher"->AiTeacherScreen(token){page="home"}
             }
         }
+    }
+}
+
+@Composable
+private fun DemoHomeScreen(onLogout:()->Unit){
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().padding(20.dp)){
+        Text("UPSC • TEST MODE",style=MaterialTheme.typography.headlineSmall)
+        Text("UI और navigation जाँचने के लिए temporary demo चालू है। Backend data fake नहीं किया गया है।",modifier=Modifier.padding(vertical=16.dp))
+        Card(Modifier.fillMaxWidth()){androidx.compose.foundation.layout.Column(Modifier.padding(18.dp)){Text("PRELIMS");Text("MAINS");Text("OPTIONAL");Text("AI Teacher • Practice • Tests • Notes")}}
+        TextButton(onClick=onLogout){Text("Test Mode से बाहर जाएँ")}
     }
 }
