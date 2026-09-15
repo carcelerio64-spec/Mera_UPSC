@@ -1,11 +1,11 @@
 package com.upscprep.app
 
 /**
- * Temporary testing gate.
- * Change only ENABLED to false when demo mode must be removed.
- * No production credential or backend behavior is faked here.
+ * Production builds must use the real app/backend flow.
+ * Keep this switch disabled; the demo-only screens remain available in source
+ * for development reference but are not activated at runtime.
  */
 object DemoMode {
-    const val ENABLED = true
+    const val ENABLED = false
     const val TOKEN = "demo-test-mode"
 }
