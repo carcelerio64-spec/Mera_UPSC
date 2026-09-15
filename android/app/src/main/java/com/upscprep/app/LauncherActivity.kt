@@ -28,7 +28,7 @@ fun UpscAppRoot(context:Context){
     var selectedSection by remember{mutableStateOf<QuestionSectionDto?>(null)}
     var answerQuestion by remember{mutableStateOf<TopicQuestionDto?>(null)}
 
-    if(token.isBlank()){LoginScreen{newToken->prefs.edit().putString("token",newToken).apply();token=newToken};return}
+    if(token.isBlank()){AuthScreen{newToken->prefs.edit().putString("token",newToken).apply();token=newToken};return}
 
     Scaffold(bottomBar={NavigationBar{listOf("Home","Prelims","Mains","Optional").forEach{label->NavigationBarItem(selected=page.equals(label,true),onClick={page=label.lowercase()},icon={},label={Text(label)})}}}){padding->
         Box(Modifier.padding(padding).fillMaxSize()){
