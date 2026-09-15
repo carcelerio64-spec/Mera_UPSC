@@ -88,7 +88,7 @@ fun MainsAnswerWritingScreen(context:Context,token:String,question:TopicQuestion
             Card(Modifier.fillMaxWidth().padding(top=12.dp)){Column(Modifier.padding(16.dp)){
                 Text("Submission #${s.submission_id}",fontWeight=FontWeight.Bold)
                 Text("Maximum: ${s.max_marks} marks • Word limit: ${s.word_limit}")
-                TextButton(onClick={loadEvaluation}){Text("Evaluation देखें")}
+                TextButton(onClick={loadEvaluation()}){Text("Evaluation देखें")}
             }}
         }
         evaluation?.let{e->
