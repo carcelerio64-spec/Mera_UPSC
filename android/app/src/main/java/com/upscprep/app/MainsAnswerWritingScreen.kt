@@ -63,7 +63,7 @@ fun MainsAnswerWritingScreen(context:Context,token:String,question:TopicQuestion
         }}
         OutlinedTextField(answer,{answer=it},label={Text("Typed answer")},modifier=Modifier.fillMaxWidth().heightIn(min=180.dp))
         Button(enabled=!busy&&answer.isNotBlank(),onClick={scope.launch{
-            busy=true;message="";try{submission=ApiClient.api.submitTypedAnswer(ApiClient.bearer(token),TypedAnswerRequest(question.id,answer));message="Typed answer submit हो गया। Model answer unlock के लिए handwritten upload जरूरी है।";loadSolution()}catch(_:Exception){message="Answer submit नहीं हुआ"}finally{busy=false}
+            busy=true;message="";try{submission=ApiClient.api.submitTypedAnswer(ApiClient.bearer(token),TypedAnswerRequest(question.id,answer));evaluation=null;message="Typed answer submit हो गया। Model answer और evaluation unlock के लिए handwritten upload जरूरी है।";loadSolution()}catch(_:Exception){message="Answer submit नहीं हुआ"}finally{busy=false}
         }},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("Typed Answer Submit")}
 
         Text("या handwritten answer upload करें",fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=20.dp,bottom=8.dp))
@@ -79,7 +79,7 @@ fun MainsAnswerWritingScreen(context:Context,token:String,question:TopicQuestion
                     val qid=question.id.toString().toRequestBody("text/plain".toMediaTypeOrNull())
                     val body=f.bytes.toRequestBody(f.mime.toMediaTypeOrNull())
                     val part=MultipartBody.Part.createFormData("file",f.name,body)
-                    submission=ApiClient.api.uploadMainsAnswer(ApiClient.bearer(token),qid,part);message="Handwritten answer upload हो गया";solution=ApiClient.api.questionSolution(ApiClient.bearer(token),question.id)
+                    submission=ApiClient.api.uploadMainsAnswer(ApiClient.bearer(token),qid,part);evaluation=null;message="Handwritten answer upload हो गया";solution=ApiClient.api.questionSolution(ApiClient.bearer(token),question.id)
                 }catch(_:Exception){message="Answer upload नहीं हुआ"}finally{busy=false}
             }},modifier=Modifier.fillMaxWidth().padding(top=8.dp)){Text("Upload Answer")}
         }
@@ -101,17 +101,34 @@ fun MainsAnswerWritingScreen(context:Context,token:String,question:TopicQuestion
             Card(Modifier.fillMaxWidth().padding(top=12.dp)){Column(Modifier.padding(16.dp)){
                 Text("Submission #${s.submission_id}",fontWeight=FontWeight.Bold)
                 Text("Maximum: ${s.max_marks} marks • Word limit: ${s.word_limit}")
-                TextButton(onClick={loadEvaluation()}){Text("Evaluation देखें")}
+                TextButton(onClick={loadEvaluation()}){Text("Evaluation status देखें")}
             }}
         }
         evaluation?.let{e->
             Card(Modifier.fillMaxWidth().padding(top=10.dp)){Column(Modifier.padding(16.dp)){
                 Text("UPSC-pattern AI Evaluation",fontWeight=FontWeight.Bold)
-                if(e.status=="pending")Text("Evaluation pending") else{
-                    Text("Marks: ${e.marks_awarded?:0.0}/${e.max_marks?:0}",style=MaterialTheme.typography.titleLarge)
-                    if(!e.strengths.isNullOrBlank())Text("Strengths: ${e.strengths}",modifier=Modifier.padding(top=8.dp))
-                    if(!e.improvements.isNullOrBlank())Text("Improve: ${e.improvements}",modifier=Modifier.padding(top=8.dp))
-                    Text("यह official UPSC marks नहीं है।",style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=10.dp))
+                when(e.status){
+                    "locked"->{
+                        Text("🔒 Evaluation locked",fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=8.dp))
+                        Text(e.detail ?: "Handwritten PDF/photo/camera answer upload करने के बाद ही evaluation खुलेगा।",modifier=Modifier.padding(top=6.dp))
+                    }
+                    "pending"->{
+                        Text("Evaluation pending",fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=8.dp))
+                        Text("Handwritten answer मिल गया है। UPSC-pattern AI evaluation तैयार होने पर यहाँ marks और feedback दिखेंगे।",modifier=Modifier.padding(top=6.dp))
+                    }
+                    "evaluated"->{
+                        Text("Marks: ${e.marks_awarded?:0.0}/${e.max_marks?:0}",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
+                        if(e.demand_score!=null)Text("Demand: ${e.demand_score}/10")
+                        if(e.structure_score!=null)Text("Structure: ${e.structure_score}/10")
+                        if(e.analysis_score!=null)Text("Analysis: ${e.analysis_score}/10")
+                        if(e.evidence_score!=null)Text("Facts / Examples: ${e.evidence_score}/10")
+                        if(e.presentation_score!=null)Text("Presentation: ${e.presentation_score}/10")
+                        if(e.word_limit_score!=null)Text("Word limit: ${e.word_limit_score}/10")
+                        if(!e.strengths.isNullOrBlank())Text("Strengths: ${e.strengths}",modifier=Modifier.padding(top=8.dp))
+                        if(!e.improvements.isNullOrBlank())Text("Improve: ${e.improvements}",modifier=Modifier.padding(top=8.dp))
+                        Text("यह UPSC-pattern AI Evaluation है, official UPSC examiner marks नहीं।",style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=10.dp))
+                    }
+                    else->Text(e.detail ?: "Evaluation status उपलब्ध नहीं है",modifier=Modifier.padding(top=8.dp))
                 }
             }}
         }
