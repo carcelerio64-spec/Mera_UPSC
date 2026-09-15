@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .study_system import SessionStudy, QuestionBank, QuestionAttempt, question_detail_map, save_question_detail, save_attempt
+from .study_system import SessionStudy, QuestionBank, QuestionAttempt, MainsAnswerSubmission, question_detail_map, save_question_detail, save_attempt
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
@@ -107,11 +107,23 @@ def build_study_router(current_user):
     def question_solution(question_id:int,u=Depends(current_user)):
         s=SessionStudy()
         try:
-            if not s.get(QuestionBank,question_id):raise HTTPException(status_code=404,detail='Question not found')
+            q=s.get(QuestionBank,question_id)
+            if not q:raise HTTPException(status_code=404,detail='Question not found')
+            d=question_detail_map([question_id]).get(question_id)
+            if not d:return {'question_id':question_id,'available':False}
+            qtype=(d.get('question_type') or 'mains').lower()
+            protected=qtype!='mcq' and (q.exam or '').lower() in {'mains','optional'}
+            if protected:
+                uploaded=s.query(MainsAnswerSubmission).filter(
+                    MainsAnswerSubmission.user_id==u.id,
+                    MainsAnswerSubmission.question_id==question_id,
+                    MainsAnswerSubmission.file_url!='',
+                    MainsAnswerSubmission.file_type.in_(['pdf','photo'])
+                ).order_by(MainsAnswerSubmission.submitted_at.desc()).first()
+                if not uploaded:
+                    return {'question_id':question_id,'available':False,'model_answer_unlocked':False,'requires_handwritten_upload':True,'detail':'इस प्रश्न का model answer handwritten PDF/photo/camera answer upload करने के बाद ही खुलेगा।'}
+            return {'question_id':question_id,'available':True,'model_answer_unlocked':True,'requires_handwritten_upload':False,'correct_answer':d.get('correct_answer',''),'explanation':d.get('explanation',''),'model_outline':d.get('model_outline',''),'marks':d.get('marks',0),'word_limit':d.get('word_limit',0)}
         finally:s.close()
-        d=question_detail_map([question_id]).get(question_id)
-        if not d:return {'question_id':question_id,'available':False}
-        return {'question_id':question_id,'available':True,'correct_answer':d.get('correct_answer',''),'explanation':d.get('explanation',''),'model_outline':d.get('model_outline',''),'marks':d.get('marks',0),'word_limit':d.get('word_limit',0)}
 
     @router.get('/pyq')
     def official_pyq(exam:str='mains',year:int=2026,subject:Optional[str]=None,u=Depends(current_user)):
