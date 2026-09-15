@@ -4,17 +4,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.Field
-import retrofit2.http.FormUrlEncoded
-import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Part
-import retrofit2.http.Path
-import retrofit2.http.Query
+import retrofit2.http.*
 
 data class TokenResponse(val access_token:String,val token_type:String)
 data class SignupRequest(val name:String,val email:String,val password:String,val target_year:Int=2027,val language:String="hi")
@@ -44,34 +34,40 @@ data class AnswerEvaluationDto(val submission_id:Int,val status:String,val marks
 data class QuestionSolutionDto(val question_id:Int,val available:Boolean=false,val model_answer_unlocked:Boolean=false,val requires_handwritten_upload:Boolean=false,val detail:String?=null,val correct_answer:String="",val explanation:String="",val model_outline:String="",val marks:Int=0,val word_limit:Int=0)
 data class AiTeacherAskRequest(val question:String,val language:String="hi",val subject:String="",val topic:String="",val paper:String="")
 data class AiTeacherResponse(val question:String,val prelims_view:String,val mains_view:String,val quick_revision:List<String> = emptyList(),val source_note:String="")
+data class MockQuestionDto(val id:Int,val subject:String,val topic:String,val question:String,val options:List<String> = emptyList())
+data class NegativeMarkingDto(val wrong_fraction:Double=1.0/3.0,val blank_penalty:Double=0.0,val multiple_answers_treated_as_wrong:Boolean=true)
+data class PrelimsMockDto(val paper:String,val completed_topics_only:Boolean=true,val required_questions:Int,val available_questions:Int,val generation_needed:Int,val marks_per_question:Double,val negative_marking:NegativeMarkingDto,val questions:List<MockQuestionDto> = emptyList())
+data class MockSubmitRequest(val question_ids:List<Int>,val answers:Map<String,String>)
+data class MockResultDto(val correct:Int,val wrong:Int,val blank:Int,val negative_fraction:Double,val score:Double)
+data class MainsPaperQuestionDto(val number:Int,val id:Int,val subject:String,val topic:String,val question:String,val marks:Int,val word_limit:Int)
+data class MainsPaperDto(val paper:String,val required_questions:Int,val available_questions:Int=0,val generation_needed:Int=0,val ready:Boolean=false,val maximum_marks:Int=250,val duration_minutes:Int=180,val questions:List<MainsPaperQuestionDto> = emptyList())
 
 interface UpscApi{
-    @FormUrlEncoded @POST("auth/token") suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
-    @POST("auth/signup") suspend fun signup(@Body body:SignupRequest):TokenResponse
-    @GET("dashboard") suspend fun dashboard(@Header("Authorization") auth:String):DashboardDto
-    @GET("syllabus/{exam}") suspend fun syllabus(@Path("exam") exam:String,@Header("Authorization") auth:String):List<SyllabusSectionDto>
-    @GET("optional/subjects") suspend fun optionalSubjects(@Header("Authorization") auth:String):List<String>
-    @GET("optional/selection") suspend fun optionalSelection(@Header("Authorization") auth:String):OptionalSelectionDto
-    @PUT("optional/selection") suspend fun saveOptional(@Header("Authorization") auth:String,@Body body:OptionalSaveRequest):OptionalSelectionDto
-    @GET("optional/syllabus/{subject}") suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
-    @GET("pyq") suspend fun pyq(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("year") year:Int,@Query("subject") subject:String? = null):PyqResponseDto
-    @GET("current-affairs/date-wise") suspend fun currentAffairs(@Header("Authorization") auth:String,@Query("date") date:String,@Query("subject") subject:String? = null,@Query("limit") limit:Int = 100):List<CurrentAffairDto>
-    @GET("wrong-questions") suspend fun wrongQuestions(@Header("Authorization") auth:String,@Query("limit") limit:Int = 200):List<WrongQuestionDto>
-    @GET("class-notes") suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
-    @Multipart @POST("uploads/class-note") suspend fun uploadClassNote(@Header("Authorization") auth:String,@Part file:MultipartBody.Part,@Part("exam") exam:RequestBody,@Part("subject") subject:RequestBody,@Part("topic") topic:RequestBody,@Part("title") title:RequestBody,@Part("paper") paper:RequestBody,@Part("subtopic") subtopic:RequestBody):UploadNoteResponse
-    @GET("study/topic") suspend fun topicStudy(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String):TopicStudyDto
-    @PUT("study/topic/completion") suspend fun setTopicCompletion(@Header("Authorization") auth:String,@Body body:TopicCompletionRequest):TopicCompletionResponse
-    @GET("study/question-sections") suspend fun questionSections(@Header("Authorization") auth:String,@Query("exam") exam:String):QuestionSectionsResponse
-    @GET("question-bank/by-topic") suspend fun topicQuestions(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String,@Query("limit") limit:Int=100):TopicQuestionResponse
-    @GET("question-bank/{questionId}/solution") suspend fun questionSolution(@Header("Authorization") auth:String,@Path("questionId") questionId:Int):QuestionSolutionDto
-    @POST("mains/answers/typed") suspend fun submitTypedAnswer(@Header("Authorization") auth:String,@Body body:TypedAnswerRequest):AnswerSubmissionResponse
-    @Multipart @POST("mains/answers/upload") suspend fun uploadMainsAnswer(@Header("Authorization") auth:String,@Part("question_id") questionId:RequestBody,@Part file:MultipartBody.Part):AnswerSubmissionResponse
-    @GET("mains/answers") suspend fun mainsAnswerHistory(@Header("Authorization") auth:String):List<AnswerHistoryDto>
-    @GET("mains/answers/{submissionId}/evaluation") suspend fun mainsEvaluation(@Header("Authorization") auth:String,@Path("submissionId") submissionId:Int):AnswerEvaluationDto
-    @POST("ai-teacher/ask") suspend fun askAiTeacher(@Header("Authorization") auth:String,@Body body:AiTeacherAskRequest):AiTeacherResponse
+ @FormUrlEncoded @POST("auth/token") suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
+ @POST("auth/signup") suspend fun signup(@Body body:SignupRequest):TokenResponse
+ @GET("dashboard") suspend fun dashboard(@Header("Authorization") auth:String):DashboardDto
+ @GET("syllabus/{exam}") suspend fun syllabus(@Path("exam") exam:String,@Header("Authorization") auth:String):List<SyllabusSectionDto>
+ @GET("optional/subjects") suspend fun optionalSubjects(@Header("Authorization") auth:String):List<String>
+ @GET("optional/selection") suspend fun optionalSelection(@Header("Authorization") auth:String):OptionalSelectionDto
+ @PUT("optional/selection") suspend fun saveOptional(@Header("Authorization") auth:String,@Body body:OptionalSaveRequest):OptionalSelectionDto
+ @GET("optional/syllabus/{subject}") suspend fun optionalSyllabus(@Path("subject") subject:String,@Header("Authorization") auth:String):OptionalSyllabusDto
+ @GET("pyq") suspend fun pyq(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("year") year:Int,@Query("subject") subject:String? = null):PyqResponseDto
+ @GET("current-affairs/date-wise") suspend fun currentAffairs(@Header("Authorization") auth:String,@Query("date") date:String,@Query("subject") subject:String? = null,@Query("limit") limit:Int = 100):List<CurrentAffairDto>
+ @GET("wrong-questions") suspend fun wrongQuestions(@Header("Authorization") auth:String,@Query("limit") limit:Int = 200):List<WrongQuestionDto>
+ @GET("class-notes") suspend fun classNotes(@Header("Authorization") auth:String,@Query("subject") subject:String? = null,@Query("topic") topic:String? = null):List<ClassNoteDto>
+ @Multipart @POST("uploads/class-note") suspend fun uploadClassNote(@Header("Authorization") auth:String,@Part file:MultipartBody.Part,@Part("exam") exam:RequestBody,@Part("subject") subject:RequestBody,@Part("topic") topic:RequestBody,@Part("title") title:RequestBody,@Part("paper") paper:RequestBody,@Part("subtopic") subtopic:RequestBody):UploadNoteResponse
+ @GET("study/topic") suspend fun topicStudy(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String):TopicStudyDto
+ @PUT("study/topic/completion") suspend fun setTopicCompletion(@Header("Authorization") auth:String,@Body body:TopicCompletionRequest):TopicCompletionResponse
+ @GET("study/question-sections") suspend fun questionSections(@Header("Authorization") auth:String,@Query("exam") exam:String):QuestionSectionsResponse
+ @GET("question-bank/by-topic") suspend fun topicQuestions(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String,@Query("limit") limit:Int=100):TopicQuestionResponse
+ @GET("question-bank/{questionId}/solution") suspend fun questionSolution(@Header("Authorization") auth:String,@Path("questionId") questionId:Int):QuestionSolutionDto
+ @POST("mains/answers/typed") suspend fun submitTypedAnswer(@Header("Authorization") auth:String,@Body body:TypedAnswerRequest):AnswerSubmissionResponse
+ @Multipart @POST("mains/answers/upload") suspend fun uploadMainsAnswer(@Header("Authorization") auth:String,@Part("question_id") questionId:RequestBody,@Part file:MultipartBody.Part):AnswerSubmissionResponse
+ @GET("mains/answers") suspend fun mainsAnswerHistory(@Header("Authorization") auth:String):List<AnswerHistoryDto>
+ @GET("mains/answers/{submissionId}/evaluation") suspend fun mainsEvaluation(@Header("Authorization") auth:String,@Path("submissionId") submissionId:Int):AnswerEvaluationDto
+ @POST("ai-teacher/ask") suspend fun askAiTeacher(@Header("Authorization") auth:String,@Body body:AiTeacherAskRequest):AiTeacherResponse
+ @GET("prelims/combined-mock") suspend fun prelimsCombinedMock(@Header("Authorization") auth:String,@Query("paper") paper:String="GS Paper-I"):PrelimsMockDto
+ @POST("prelims/combined-mock/submit") suspend fun submitPrelimsCombinedMock(@Header("Authorization") auth:String,@Body body:MockSubmitRequest):MockResultDto
+ @GET("mains/combined-paper") suspend fun mainsCombinedPaper(@Header("Authorization") auth:String,@Query("paper") paper:String):MainsPaperDto
 }
-
-object ApiClient{
-    val api:UpscApi by lazy{Retrofit.Builder().baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/").addConverterFactory(GsonConverterFactory.create()).build().create(UpscApi::class.java)}
-    fun bearer(token:String)="Bearer $token"
-}
+object ApiClient{val api:UpscApi by lazy{Retrofit.Builder().baseUrl(BuildConfig.API_BASE_URL.trimEnd('/')+"/").addConverterFactory(GsonConverterFactory.create()).build().create(UpscApi::class.java)};fun bearer(token:String)="Bearer $token"}
