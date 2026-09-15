@@ -40,6 +40,7 @@ data class TypedAnswerRequest(val question_id:Int,val answer_text:String)
 data class AnswerSubmissionResponse(val submission_id:Int,val question_id:Int,val max_marks:Int,val word_limit:Int,val status:String)
 data class AnswerHistoryDto(val submission_id:Int,val question_id:Int,val question:String,val paper:String,val subject:String,val topic:String,val status:String,val max_marks:Int,val word_limit:Int,val marks_awarded:Double?=null,val file_type:String?=null,val file_url:String?=null)
 data class AnswerEvaluationDto(val submission_id:Int,val status:String,val marks_awarded:Double?=null,val max_marks:Int?=null,val demand_score:Double?=null,val structure_score:Double?=null,val analysis_score:Double?=null,val evidence_score:Double?=null,val presentation_score:Double?=null,val word_limit_score:Double?=null,val strengths:String?=null,val improvements:String?=null,val model_framework:String?=null,val official_upsc_marks:Boolean?=null)
+data class QuestionSolutionDto(val question_id:Int,val available:Boolean=false,val model_answer_unlocked:Boolean=false,val requires_handwritten_upload:Boolean=false,val detail:String?=null,val correct_answer:String="",val explanation:String="",val model_outline:String="",val marks:Int=0,val word_limit:Int=0)
 data class AiTeacherAskRequest(val question:String,val language:String="hi",val subject:String="",val topic:String="",val paper:String="")
 data class AiTeacherResponse(val question:String,val prelims_view:String,val mains_view:String,val quick_revision:List<String> = emptyList(),val source_note:String="")
 
@@ -60,6 +61,7 @@ interface UpscApi{
     @PUT("study/topic/completion") suspend fun setTopicCompletion(@Header("Authorization") auth:String,@Body body:TopicCompletionRequest):TopicCompletionResponse
     @GET("study/question-sections") suspend fun questionSections(@Header("Authorization") auth:String,@Query("exam") exam:String):QuestionSectionsResponse
     @GET("question-bank/by-topic") suspend fun topicQuestions(@Header("Authorization") auth:String,@Query("exam") exam:String,@Query("paper") paper:String,@Query("subject") subject:String,@Query("topic") topic:String,@Query("limit") limit:Int=100):TopicQuestionResponse
+    @GET("question-bank/{questionId}/solution") suspend fun questionSolution(@Header("Authorization") auth:String,@Path("questionId") questionId:Int):QuestionSolutionDto
     @POST("mains/answers/typed") suspend fun submitTypedAnswer(@Header("Authorization") auth:String,@Body body:TypedAnswerRequest):AnswerSubmissionResponse
     @Multipart @POST("mains/answers/upload") suspend fun uploadMainsAnswer(@Header("Authorization") auth:String,@Part("question_id") questionId:RequestBody,@Part file:MultipartBody.Part):AnswerSubmissionResponse
     @GET("mains/answers") suspend fun mainsAnswerHistory(@Header("Authorization") auth:String):List<AnswerHistoryDto>
