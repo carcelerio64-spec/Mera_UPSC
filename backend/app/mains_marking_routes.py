@@ -18,6 +18,9 @@ class MarkingIn(BaseModel):
     improvements:str=''
     model_framework:str=''
 
+def _is_handwritten_upload(sub:MainsAnswerSubmission)->bool:
+    return bool(sub.file_url and sub.file_type in {'pdf','photo'})
+
 def build_mains_marking_router(current_user):
     router=APIRouter()
 
@@ -28,6 +31,7 @@ def build_mains_marking_router(current_user):
         try:
             sub=s.get(MainsAnswerSubmission,submission_id)
             if not sub:raise HTTPException(404,'Submission not found')
+            if not _is_handwritten_upload(sub):raise HTTPException(409,'Handwritten PDF/photo answer upload is required before evaluation')
             q=s.get(QuestionBank,sub.question_id)
             if not q:raise HTTPException(404,'Question not found')
             d=s.query(QuestionDetail).filter(QuestionDetail.question_id==sub.question_id).first()
@@ -45,8 +49,10 @@ def build_mains_marking_router(current_user):
         try:
             sub=s.get(MainsAnswerSubmission,submission_id)
             if not sub or sub.user_id!=u.id:raise HTTPException(404,'Submission not found')
+            if not _is_handwritten_upload(sub):
+                return {'submission_id':submission_id,'status':'locked','requires_handwritten_upload':True,'detail':'Handwritten PDF/photo/camera answer upload is required before UPSC-pattern AI Evaluation.'}
             e=s.query(MainsAnswerEvaluation).filter(MainsAnswerEvaluation.submission_id==submission_id).first()
-            if not e:return {'submission_id':submission_id,'status':'pending'}
-            return {'submission_id':submission_id,'status':'evaluated','marks_awarded':e.marks_awarded,'max_marks':e.max_marks,'demand_score':e.demand_score,'structure_score':e.structure_score,'analysis_score':e.analysis_score,'evidence_score':e.evidence_score,'presentation_score':e.presentation_score,'word_limit_score':e.word_limit_score,'strengths':e.strengths,'improvements':e.improvements,'model_framework':e.model_framework,'evaluator':e.evaluator,'official_upsc_marks':False}
+            if not e:return {'submission_id':submission_id,'status':'pending','requires_handwritten_upload':False}
+            return {'submission_id':submission_id,'status':'evaluated','marks_awarded':e.marks_awarded,'max_marks':e.max_marks,'demand_score':e.demand_score,'structure_score':e.structure_score,'analysis_score':e.analysis_score,'evidence_score':e.evidence_score,'presentation_score':e.presentation_score,'word_limit_score':e.word_limit_score,'strengths':e.strengths,'improvements':e.improvements,'model_framework':e.model_framework,'evaluator':e.evaluator,'official_upsc_marks':False,'requires_handwritten_upload':False}
         finally:s.close()
     return router
