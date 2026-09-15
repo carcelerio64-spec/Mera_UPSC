@@ -17,6 +17,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 data class TokenResponse(val access_token:String,val token_type:String)
+data class SignupRequest(val name:String,val email:String,val password:String,val target_year:Int=2027,val language:String="hi")
 data class DashboardDto(val name:String,val target_year:Int,val overall_progress:Int,val revision_due:Int,val today_topics:Int,val continue_learning:String)
 data class SyllabusSectionDto(val paper:String,val subject:String,val topics:List<String> = emptyList())
 data class OptionalSelectionDto(val subject:String? = null)
@@ -46,6 +47,7 @@ data class AiTeacherResponse(val question:String,val prelims_view:String,val mai
 
 interface UpscApi{
     @FormUrlEncoded @POST("auth/token") suspend fun login(@Field("username") username:String,@Field("password") password:String):TokenResponse
+    @POST("auth/signup") suspend fun signup(@Body body:SignupRequest):TokenResponse
     @GET("dashboard") suspend fun dashboard(@Header("Authorization") auth:String):DashboardDto
     @GET("syllabus/{exam}") suspend fun syllabus(@Path("exam") exam:String,@Header("Authorization") auth:String):List<SyllabusSectionDto>
     @GET("optional/subjects") suspend fun optionalSubjects(@Header("Authorization") auth:String):List<String>
