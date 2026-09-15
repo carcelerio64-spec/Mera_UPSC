@@ -93,7 +93,7 @@ fun MainsAnswerWritingScreen(context:Context,token:String,question:TopicQuestion
                 if(sol.model_outline.isNotBlank())Text(sol.model_outline,modifier=Modifier.padding(top=8.dp)) else Text("Model framework अभी तैयार नहीं है।",modifier=Modifier.padding(top=8.dp))
             }else{
                 Text(sol?.detail ?: "🔒 Handwritten PDF/photo/camera answer upload करने के बाद ही model answer खुलेगा।",modifier=Modifier.padding(top=8.dp))
-                TextButton(onClick={loadSolution}){Text("Unlock status refresh करें")}
+                TextButton(onClick={loadSolution()}){Text("Unlock status refresh करें")}
             }
         }}
 
