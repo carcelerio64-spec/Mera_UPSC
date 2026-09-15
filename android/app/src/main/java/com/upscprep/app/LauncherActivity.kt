@@ -4,12 +4,11 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 class LauncherActivity:ComponentActivity(){
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{MaterialTheme{UpscAppRoot(this)}}}
@@ -60,10 +59,10 @@ fun UpscAppRoot(context:Context){
 
 @Composable
 private fun DemoHomeScreen(onLogout:()->Unit){
-    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().padding(20.dp)){
+    Column(Modifier.fillMaxSize().padding(20.dp)){
         Text("UPSC • TEST MODE",style=MaterialTheme.typography.headlineSmall)
         Text("UI और navigation जाँचने के लिए temporary demo चालू है। Backend data fake नहीं किया गया है।",modifier=Modifier.padding(vertical=16.dp))
-        Card(Modifier.fillMaxWidth()){androidx.compose.foundation.layout.Column(Modifier.padding(18.dp)){Text("PRELIMS");Text("MAINS");Text("OPTIONAL");Text("AI Teacher • Practice • Tests • Notes")}}
+        Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text("PRELIMS");Text("MAINS");Text("OPTIONAL");Text("AI Teacher • Practice • Tests • Notes")}}
         TextButton(onClick=onLogout){Text("Test Mode से बाहर जाएँ")}
     }
 }
