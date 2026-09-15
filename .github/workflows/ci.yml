@@ -49,3 +49,10 @@ jobs:
           gradle-version: '8.9'
       - name: Assemble Android debug
         run: gradle -p android :app:assembleDebug --stacktrace
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mera-UPSC-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
