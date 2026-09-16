@@ -30,8 +30,8 @@ def _balanced_sample(rows,count):
 def _mains_qca_html(paper,questions,code):
  blocks=[]
  for i,q in enumerate(questions,1):
-  words=150 if i<=10 else 250;marks=10 if i<=10 else 15;lines=18 if words==150 else 28;answer=''.join('<div class="answer-line"></div>'for _ in range(lines));blocks.append(f'<section class="question-block"><div class="qhead"><b>Q{i}.</b><span>{marks} Marks</span></div><div class="question">{html.escape(q["question"])}</div><div class="limit">Answer in not more than {words} words.</div><div class="answer-space">{answer}</div></section>')
- return f'''<!doctype html><html><head><meta charset="utf-8"><title>UPSC-style {html.escape(paper)} Practice</title><style>@page{{size:A4;margin:14mm}}body{{font-family:system-ui,sans-serif}}.cover{{text-align:center;padding:18mm 8mm;page-break-after:always}}.meta{{margin:28px auto;max-width:520px;border:1px solid;padding:14px;text-align:left}}.question-block{{page-break-inside:avoid;margin-bottom:12mm}}.qhead{{display:flex;justify-content:space-between;border-top:1.5px solid;padding-top:5px}}.question{{line-height:1.55;margin:6px 0}}.limit{{font-size:9.5pt;font-style:italic}}.answer-space{{border:1px solid #888;padding:5mm}}.answer-line{{height:8mm;border-bottom:1px solid #bbb}}@media print{{button{{display:none}}}}</style></head><body><section class="cover"><h1>CIVIL SERVICES (MAIN) PRACTICE EXAMINATION</h1><h2>{html.escape(paper)}</h2><div class="meta"><b>Paper ID:</b> {code}<br><b>Time:</b> Three Hours<br><b>Maximum Marks:</b> 250<br><b>Total Questions:</b> 20</div><p>AI-generated practice paper; not an official UPSC paper.</p><button onclick="window.print()">Print / Save as PDF</button></section>{''.join(blocks)}</body></html>'''
+  words=150 if i<=10 else 250;marks=10 if i<=10 else 15;lines=18 if words==150 else 28;answer=''.join('<div class="answer-line"></div>'for _ in range(lines));blocks.append(f'<section class="question-block"><div class="qhead"><b>प्रश्न {i}.</b><span>{marks} अंक</span></div><div class="question">{html.escape(q["question"])}</div><div class="limit">उत्तर {words} शब्दों से अधिक न हो।</div><div class="answer-space">{answer}</div></section>')
+ return f'''<!doctype html><html lang="hi"><head><meta charset="utf-8"><title>मुख्य परीक्षा अभ्यास - {html.escape(paper)}</title><style>@page{{size:A4;margin:14mm}}body{{font-family:system-ui,sans-serif;position:relative}}body:before{{content:"AMIT";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:92pt;font-weight:800;letter-spacing:12px;color:rgba(0,0,0,.055);transform:rotate(-35deg);z-index:-1;pointer-events:none}}.cover{{text-align:center;padding:18mm 8mm;page-break-after:always}}.meta{{margin:28px auto;max-width:520px;border:1px solid;padding:14px;text-align:left}}.question-block{{page-break-inside:avoid;margin-bottom:12mm}}.qhead{{display:flex;justify-content:space-between;border-top:1.5px solid;padding-top:5px}}.question{{line-height:1.55;margin:6px 0}}.limit{{font-size:9.5pt;font-style:italic}}.answer-space{{border:1px solid #888;padding:5mm}}.answer-line{{height:8mm;border-bottom:1px solid #bbb}}@media print{{button{{display:none}}body:before{{position:fixed}}}}</style></head><body><section class="cover"><h1>सिविल सेवा (मुख्य) अभ्यास परीक्षा</h1><h2>{html.escape(paper)}</h2><div class="meta"><b>पेपर आईडी:</b> {code}<br><b>समय:</b> तीन घंटे<br><b>अधिकतम अंक:</b> 250<br><b>कुल प्रश्न:</b> 20</div><p>यह AI द्वारा तैयार अभ्यास प्रश्नपत्र है; यह आधिकारिक UPSC प्रश्नपत्र नहीं है।</p><button onclick="window.print()">प्रिंट / PDF में सहेजें</button></section>{''.join(blocks)}</body></html>'''
 def build_exam_router(current_user):
  router=APIRouter()
  @router.get('/prelims/combined-mock')
@@ -48,10 +48,10 @@ def build_exam_router(current_user):
   s=SessionStudy()
   try:
    gp=s.query(GeneratedPaper).filter(GeneratedPaper.paper_code==x.paper_code,GeneratedPaper.user_id==u.id,GeneratedPaper.exam=='prelims').first()
-   if not gp:raise HTTPException(404,'Paper not found')
-   if gp.status=='submitted':raise HTTPException(409,'Paper already submitted')
+   if not gp:raise HTTPException(404,'प्रश्नपत्र नहीं मिला')
+   if gp.status=='submitted':raise HTTPException(409,'प्रश्नपत्र पहले ही जमा किया जा चुका है')
    expected=json.loads(gp.question_ids_json);submitted=[int(i)for i in x.question_ids]
-   if submitted!=expected:raise HTTPException(400,'Submitted question set does not match generated paper')
+   if submitted!=expected:raise HTTPException(400,'जमा किए गए प्रश्न तैयार प्रश्नपत्र से मेल नहीं खाते')
    rows=s.query(QuestionBank).filter(QuestionBank.id.in_(expected)).all();details=question_detail_map(expected);correct=wrong=blank=0;score=0.0
    for qid in expected:
     d=details.get(qid,{});right=str(d.get('correct_answer','')).strip();ans=str(x.answers.get(str(qid),'')).strip();row=next(r for r in rows if r.id==qid);marks=2.5 if('CSAT'in row.paper.upper()or'II'in row.paper)else 2.0
@@ -71,19 +71,19 @@ def build_exam_router(current_user):
   finally:s.close()
  @router.get('/mains/combined-paper')
  def mains_combined_paper(paper:str='GS-II',u=Depends(current_user)):
-  if paper not in{'GS-I','GS-II','GS-III','GS-IV'}:raise HTTPException(400,'Use GS-I, GS-II, GS-III or GS-IV')
+  if paper not in{'GS-I','GS-II','GS-III','GS-IV'}:raise HTTPException(400,'GS-I, GS-II, GS-III या GS-IV चुनें')
   s=SessionStudy()
   try:
    rows=_eligible_questions(s,u.id,'mains',paper)
    if len(rows)<20:return{'paper':paper,'required_questions':20,'available_questions':len(rows),'generation_needed':20-len(rows),'ready':False}
-   chosen=_balanced_sample(rows,20);code='MAIN-'+secrets.token_hex(6).upper();gp=GeneratedPaper(paper_code=code,user_id=u.id,exam='mains',paper=paper,question_ids_json=json.dumps([r.id for r in chosen]));s.add(gp);s.commit();return{'paper_code':code,'paper':paper,'ready':True,'maximum_marks':250,'duration_minutes':180,'questions':[{'number':i,'id':r.id,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'question':r.question,'marks':10 if i<=10 else15,'word_limit':150 if i<=10 else250}for i,r in enumerate(chosen,1)]}
+   chosen=_balanced_sample(rows,20);code='MAIN-'+secrets.token_hex(6).upper();gp=GeneratedPaper(paper_code=code,user_id=u.id,exam='mains',paper=paper,question_ids_json=json.dumps([r.id for r in chosen]));s.add(gp);s.commit();return{'paper_code':code,'paper':paper,'ready':True,'maximum_marks':250,'duration_minutes':180,'questions':[{'number':i,'id':r.id,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'question':r.question,'marks':10 if i<=10 else 15,'word_limit':150 if i<=10 else 250}for i,r in enumerate(chosen,1)]}
   finally:s.close()
  @router.get('/mains/combined-paper/print',response_class=HTMLResponse)
  def mains_print(paper_code:str,u=Depends(current_user)):
   s=SessionStudy()
   try:
    gp=s.query(GeneratedPaper).filter(GeneratedPaper.paper_code==paper_code,GeneratedPaper.user_id==u.id,GeneratedPaper.exam=='mains').first()
-   if not gp:raise HTTPException(404,'Generated paper not found')
+   if not gp:raise HTTPException(404,'तैयार प्रश्नपत्र नहीं मिला')
    ids=json.loads(gp.question_ids_json);rows={r.id:r for r in s.query(QuestionBank).filter(QuestionBank.id.in_(ids)).all()};return HTMLResponse(_mains_qca_html(gp.paper,[{'question':rows[i].question}for i in ids],gp.paper_code))
   finally:s.close()
  return router
