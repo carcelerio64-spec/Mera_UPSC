@@ -1,8 +1,8 @@
-"""UPSC CSE optional syllabus registry.
+"""UPSC CSE optional-subject registry.
 
-Only verified topic groups are exposed as loaded. A subject is marked complete only when
-both Paper-I and Paper-II are fully transcribed and checked against an official UPSC CSE
-notification. This prevents the app from pretending that partial optional data is complete.
+The official subject set is kept here as a hard validation boundary. Detailed paper topics
+are exposed only when they have been transcribed and verified against the UPSC notification;
+missing detail is never silently reported as complete.
 """
 
 from copy import deepcopy
@@ -10,8 +10,26 @@ from copy import deepcopy
 OFFICIAL_NOTIFICATION_SOURCE = "https://upsc.gov.in/sites/default/files/Notif-CSP-2025-Engl-220125.pdf"
 OFFICIAL_PYQ_SOURCE = "https://www.upsc.gov.in/examinations/previous-question-papers"
 
-# Verified transcription currently being expanded subject-by-subject.  `complete=False`
-# is deliberate until every numbered/sub-numbered syllabus point for both papers is loaded.
+NON_LITERATURE_OPTIONALS = [
+    "Agriculture", "Animal Husbandry and Veterinary Science", "Anthropology", "Botany",
+    "Chemistry", "Civil Engineering", "Commerce and Accountancy", "Economics",
+    "Electrical Engineering", "Geography", "Geology", "History", "Law", "Management",
+    "Mathematics", "Mechanical Engineering", "Medical Science", "Philosophy", "Physics",
+    "Political Science and International Relations", "Psychology", "Public Administration",
+    "Sociology", "Statistics", "Zoology",
+]
+
+LITERATURE_LANGUAGES = [
+    "Assamese", "Bengali", "Bodo", "Dogri", "Gujarati", "Hindi", "Kannada", "Kashmiri",
+    "Konkani", "Maithili", "Malayalam", "Manipuri", "Marathi", "Nepali", "Odia", "Punjabi",
+    "Sanskrit", "Santhali", "Sindhi", "Tamil", "Telugu", "Urdu", "English",
+]
+
+OFFICIAL_OPTIONAL_SUBJECTS = NON_LITERATURE_OPTIONALS + [
+    f"{language} Literature" for language in LITERATURE_LANGUAGES
+]
+
+# Paper detail is added only after line-by-line official verification.
 OPTIONAL_DATA = {
     "Anthropology": {
         "source_url": OFFICIAL_NOTIFICATION_SOURCE,
@@ -67,6 +85,7 @@ def get_optional_subject(subject: str):
     if not data:
         return {
             "subject": subject,
+            "official_subject": subject in OFFICIAL_OPTIONAL_SUBJECTS,
             "source_url": OFFICIAL_NOTIFICATION_SOURCE,
             "pyq_source_url": OFFICIAL_PYQ_SOURCE,
             "complete": False,
@@ -77,6 +96,7 @@ def get_optional_subject(subject: str):
         }
     out = deepcopy(data)
     out["subject"] = subject
+    out["official_subject"] = subject in OFFICIAL_OPTIONAL_SUBJECTS
     out["pyq_source_url"] = OFFICIAL_PYQ_SOURCE
     return out
 
@@ -91,10 +111,9 @@ def optional_topic_is_verified(subject: str, paper: str, topic: str) -> bool:
     return False
 
 
-def optional_coverage(subjects):
-    complete = []
-    partial = []
-    empty = []
+def optional_coverage(subjects=None):
+    subjects = list(subjects or OFFICIAL_OPTIONAL_SUBJECTS)
+    complete, partial, empty = [], [], []
     for subject in subjects:
         data = get_optional_subject(subject)
         if data.get("complete"):
@@ -105,6 +124,8 @@ def optional_coverage(subjects):
             empty.append(subject)
     return {
         "total_subjects": len(subjects),
+        "official_non_literature_count": len(NON_LITERATURE_OPTIONALS),
+        "official_literature_count": len(LITERATURE_LANGUAGES),
         "complete_subjects": complete,
         "partial_subjects": partial,
         "not_loaded_subjects": empty,
@@ -112,3 +133,21 @@ def optional_coverage(subjects):
         "partial_count": len(partial),
         "not_loaded_count": len(empty),
     }
+
+
+def validate_official_optional_registry():
+    """Fail loudly if an official optional subject disappears from the app registry."""
+    expected_non_lit = 25
+    expected_literature = 23
+    if len(NON_LITERATURE_OPTIONALS) != expected_non_lit:
+        raise ValueError("UPSC non-literature optional registry must contain exactly 25 subjects")
+    if len(LITERATURE_LANGUAGES) != expected_literature:
+        raise ValueError("UPSC literature registry must contain exactly 23 languages")
+    if len(OFFICIAL_OPTIONAL_SUBJECTS) != expected_non_lit + expected_literature:
+        raise ValueError("UPSC optional registry contains duplicates or missing subjects")
+    if len(set(OFFICIAL_OPTIONAL_SUBJECTS)) != len(OFFICIAL_OPTIONAL_SUBJECTS):
+        raise ValueError("UPSC optional registry contains duplicate subjects")
+    return True
+
+
+validate_official_optional_registry()
