@@ -25,10 +25,10 @@ def _topic_is_loaded(exam,paper,subject,topic):
 def _coverage():
     prelims=syllabus_for('prelims');mains=syllabus_for('mains');opt=optional_coverage(OPTIONAL_SUBJECTS)
     pre_ok=all(bool(x.get('topics')) for x in prelims);main_ok=all(bool(x.get('topics')) for x in mains)
-    return {'source_url':OFFICIAL_NOTIFICATION_SOURCE,'prelims':{'required_papers':list(PRELIMS_PAPERS),'sections':len(prelims),'sections_with_topics':sum(bool(x.get('topics')) for x in prelims),'complete_navigation':pre_ok},'mains':{'required_merit_papers':list(MAINS_COMPULSORY_MERIT_PAPERS),'required_qualifying_papers':list(MAINS_QUALIFYING_PAPERS),'sections':len(mains),'sections_with_topics':sum(bool(x.get('topics')) for x in mains),'complete_navigation':main_ok,'qualifying_detail_loaded':False},'optional':opt,'fully_verified_complete':bool(pre_ok and main_ok and opt.get('generation_ready_count')==opt.get('total_subjects') and False),'status':'अधूरा — सभी Optional Paper-I/Paper-II और qualifying-paper detail सत्यापित होने तक complete नहीं माना जाएगा।'}
+    return {'source_url':OFFICIAL_NOTIFICATION_SOURCE,'prelims':{'required_papers':list(PRELIMS_PAPERS),'sections':len(prelims),'sections_with_topics':sum(bool(x.get('topics')) for x in prelims),'complete_navigation':pre_ok},'mains':{'required_merit_papers':list(MAINS_COMPULSORY_MERIT_PAPERS),'required_qualifying_papers':list(MAINS_QUALIFYING_PAPERS),'sections':len(mains),'sections_with_topics':sum(bool(x.get('topics')) for x in mains),'complete_navigation':main_ok,'qualifying_detail_loaded':False},'optional':opt,'fully_verified_complete':False,'status':'अधूरा — सभी Optional Paper-I/Paper-II और qualifying-paper detail सत्यापित होने तक complete नहीं माना जाएगा।'}
 
 def build_feature_router(current_user):
-    router=APIRouter()
+    router=APIRouter(prefix='/features',tags=['features'])
     def require_admin(u=Depends(current_user)):
         if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:raise HTTPException(403,'Admin access required')
         return u
@@ -93,7 +93,7 @@ def build_feature_router(current_user):
         if ext not in ALLOWED_EXTENSIONS:raise HTTPException(400,'केवल PDF/JPG/JPEG/PNG/WEBP/HEIC स्वीकार हैं।')
         data=await file.read(MAX_UPLOAD_BYTES+1);await file.close()
         if len(data)>MAX_UPLOAD_BYTES:raise HTTPException(413,'फ़ाइल बहुत बड़ी है। अधिकतम 20 MB।')
-        safe=re.sub(r'[^a-zA-Z0-9_-]+','-',Path(file.filename or 'note').stem).strip('-')[:60] or 'note';stored=f'u{u.id}_{uuid.uuid4().hex}_{safe}{ext}';(UPLOAD_DIR/stored).write_bytes(data);file_type='pdf' if ext=='.pdf' else 'photo';file_url=f'/uploads/{stored}';s=SessionStudy()
+        safe=re.sub(r'[^a-zA-Z0-9_-]+','-',Path(file.filename or 'note').stem).strip('-')[:60] or 'note';stored=f'u{u.id}_{uuid.uuid4().hex}_{safe}{ext}';(UPLOAD_DIR/stored).write_bytes(data);file_type='pdf' if ext=='.pdf' else 'photo';file_url=f'/features/uploads/{stored}';s=SessionStudy()
         try:
             row=ClassNote(user_id=u.id,exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,title=title,file_type=file_type,file_url=file_url);s.add(row);s.commit();s.refresh(row);return {'ok':True,'id':row.id,'file_type':file_type,'file_url':file_url}
         except Exception:s.rollback();(UPLOAD_DIR/stored).unlink(missing_ok=True);raise
@@ -120,4 +120,5 @@ def build_feature_router(current_user):
             if topic:q=q.filter(ClassNote.topic==topic)
             rows=q.order_by(ClassNote.uploaded_at.desc()).all();return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'title':r.title,'file_type':r.file_type,'file_url':r.file_url,'uploaded_at':r.uploaded_at.isoformat()} for r in rows]
         finally:s.close()
+    # Keep nested study/AI endpoints under /features as one stable namespace.
     router.include_router(build_study_router(current_user));router.include_router(build_ai_teacher_router(current_user));return router
