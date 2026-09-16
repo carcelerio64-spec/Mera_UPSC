@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from .current_affairs import ingest_daily,list_items
 from .official_sources import ingest_official_sources
 from .study_system import SessionStudy,OPTIONAL_SUBJECTS,OptionalSelection,ClassNote,QuestionBank,save_unique_question
-from .syllabus_catalog import syllabus_for
+from .syllabus_catalog import syllabus_for,topic_is_loaded
 from .optional_syllabus_registry import get_optional_subject,optional_topic_is_verified,optional_coverage
 from .upsc_cse_structure import MAINS_QUALIFYING_PAPERS,MAINS_COMPULSORY_MERIT_PAPERS,PRELIMS_PAPERS,OFFICIAL_NOTIFICATION_SOURCE
 from .study_routes import build_study_router
@@ -18,14 +18,14 @@ class OptionalIn(BaseModel):subject:str
 class QuestionIn(BaseModel):exam:str;paper:str;subject:str;topic:str;question:str;subtopic:str='';difficulty:str='moderate';source:str='AI-generated'
 class NoteIn(BaseModel):exam:str;paper:str='';subject:str;topic:str;subtopic:str='';title:str;file_type:str;file_url:str
 
-def _topic_is_loaded(exam,paper,subject,topic):
+def _topic_is_loaded(exam,paper,subject,topic,subtopic=''):
     key=(exam or '').lower()
-    if key in {'prelims','mains'}:return any(x.get('paper')==paper and x.get('subject')==subject and topic in x.get('topics',[]) for x in syllabus_for(key))
-    return key=='optional' and optional_topic_is_verified(subject,paper,topic)
+    if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic,subtopic or None)
+    return key=='optional' and optional_topic_is_verified(subject,paper,subtopic or topic)
 def _coverage():
     prelims=syllabus_for('prelims');mains=syllabus_for('mains');opt=optional_coverage(OPTIONAL_SUBJECTS)
-    pre_ok=all(bool(x.get('topics')) for x in prelims);main_ok=all(bool(x.get('topics')) for x in mains)
-    return {'source_url':OFFICIAL_NOTIFICATION_SOURCE,'prelims':{'required_papers':list(PRELIMS_PAPERS),'sections':len(prelims),'sections_with_topics':sum(bool(x.get('topics')) for x in prelims),'complete_navigation':pre_ok},'mains':{'required_merit_papers':list(MAINS_COMPULSORY_MERIT_PAPERS),'required_qualifying_papers':list(MAINS_QUALIFYING_PAPERS),'sections':len(mains),'sections_with_topics':sum(bool(x.get('topics')) for x in mains),'complete_navigation':main_ok,'qualifying_detail_loaded':False},'optional':opt,'fully_verified_complete':False,'status':'अधूरा — सभी Optional Paper-I/Paper-II और qualifying-paper detail सत्यापित होने तक complete नहीं माना जाएगा।'}
+    pre_ok=all(bool(x.get('topics')) for x in prelims);main_ok=all(bool(x.get('topics')) for x in mains);qualifying=set(MAINS_QUALIFYING_PAPERS).issubset({x.get('paper') for x in mains})
+    return {'source_url':OFFICIAL_NOTIFICATION_SOURCE,'prelims':{'required_papers':list(PRELIMS_PAPERS),'sections':len(prelims),'sections_with_topics':sum(bool(x.get('topics')) for x in prelims),'complete_navigation':pre_ok},'mains':{'required_merit_papers':list(MAINS_COMPULSORY_MERIT_PAPERS),'required_qualifying_papers':list(MAINS_QUALIFYING_PAPERS),'sections':len(mains),'sections_with_topics':sum(bool(x.get('topics')) for x in mains),'complete_navigation':main_ok,'qualifying_detail_loaded':qualifying},'optional':opt,'fully_verified_complete':False,'status':'अधूरा — सभी Optional Paper-I/Paper-II सत्यापित होने तक complete नहीं माना जाएगा।'}
 
 def build_feature_router(current_user):
     router=APIRouter(prefix='/features',tags=['features'])
@@ -78,7 +78,7 @@ def build_feature_router(current_user):
         finally:s.close()
     @router.post('/question-bank')
     def add_question(x:QuestionIn,u=Depends(require_admin)):
-        if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic):raise HTTPException(422,'Question topic is not in the fully verified UPSC syllabus. Load/verify syllabus first.')
+        if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic,x.subtopic):raise HTTPException(422,'प्रश्न का टॉपिक/उप-टॉपिक सत्यापित UPSC पाठ्यक्रम में नहीं है।')
         qid=save_unique_question(**x.model_dump())
         if not qid:raise HTTPException(409,'Duplicate or near-duplicate question blocked')
         return {'ok':True,'id':qid}
@@ -120,5 +120,4 @@ def build_feature_router(current_user):
             if topic:q=q.filter(ClassNote.topic==topic)
             rows=q.order_by(ClassNote.uploaded_at.desc()).all();return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'title':r.title,'file_type':r.file_type,'file_url':r.file_url,'uploaded_at':r.uploaded_at.isoformat()} for r in rows]
         finally:s.close()
-    # Keep nested study/AI endpoints under /features as one stable namespace.
     router.include_router(build_study_router(current_user));router.include_router(build_ai_teacher_router(current_user));return router
