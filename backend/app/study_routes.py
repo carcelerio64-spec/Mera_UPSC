@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from .study_system import SessionStudy, QuestionBank, QuestionAttempt, MainsAnswerSubmission, question_detail_map, save_question_detail, save_attempt
 from .syllabus_catalog import syllabus_for
 from .optional_syllabus_registry import optional_topic_is_verified
@@ -10,7 +10,7 @@ from .exam_routes import build_exam_router
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 class QuestionDetailIn(BaseModel):
-    question_type:str='mains';options:list[str]=[];correct_answer:str='';explanation:str='';marks:int=0;word_limit:int=0;model_outline:str=''
+    question_type:str='mains';options:list[str]=Field(default_factory=list);correct_answer:str='';explanation:str='';marks:int=0;word_limit:int=0;model_outline:str=''
 class AttemptIn(BaseModel):answer:str=''
 
 def _valid_topic(exam,paper,subject,topic):
@@ -90,4 +90,7 @@ def build_study_router(current_user):
         data=fetch_official_pyq(exam=exam,year=year,subject=subject)
         if isinstance(data,dict):data.update({'bank_type':'official_pyq','ai_generated':False,'separate_from_ai_bank':True})
         return data
-    router.include_router(build_exam_router(current_user));return router
+    # Exam routes live inside the /features namespace through feature_routes.
+    # Keep an explicit /exam segment so frontend and backend paths remain stable.
+    router.include_router(build_exam_router(current_user),prefix='/exam')
+    return router
