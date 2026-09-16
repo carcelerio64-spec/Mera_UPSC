@@ -36,7 +36,7 @@ Base.metadata.create_all(engine)
 from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 pwd=CryptContext(schemes=['bcrypt'],deprecated='auto');oauth2=OAuth2PasswordBearer(tokenUrl='/auth/token')
-app=FastAPI(title='UPSC Prep API',version='1.6.1')
+app=FastAPI(title='UPSC Prep API',version='1.6.2')
 app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 def db():
     s=SessionLocal()
@@ -45,9 +45,9 @@ def db():
 def token_for(uid:int):return jwt.encode({'sub':str(uid),'exp':datetime.now(timezone.utc)+timedelta(minutes=ACCESS_MINUTES)},SECRET_KEY,algorithm=ALGORITHM)
 def current_user(tok:str=Depends(oauth2),s:Session=Depends(db)):
     try:uid=int(jwt.decode(tok,SECRET_KEY,algorithms=[ALGORITHM])['sub'])
-    except (JWTError,KeyError,ValueError):raise HTTPException(401,'Invalid session')
+    except (JWTError,KeyError,ValueError):raise HTTPException(401,'अमान्य सत्र')
     u=s.get(User,uid)
-    if not u:raise HTTPException(401,'User not found')
+    if not u:raise HTTPException(401,'उपयोगकर्ता नहीं मिला')
     return u
 class Signup(BaseModel):name:str;email:EmailStr;password:str;target_year:int=2027;language:str='hi'
 class UserOut(BaseModel):id:int;name:str;email:str;target_year:int;language:str
@@ -65,12 +65,12 @@ def seed():
 def health():return {'ok':True}
 @app.post('/auth/signup')
 def signup(x:Signup,s:Session=Depends(db)):
-    if s.query(User).filter(User.email==x.email).first():raise HTTPException(409,'Email already registered')
+    if s.query(User).filter(User.email==x.email).first():raise HTTPException(409,'यह ईमेल पहले से पंजीकृत है')
     u=User(name=x.name,email=x.email,password_hash=pwd.hash(x.password),target_year=x.target_year,language=x.language);s.add(u);s.commit();s.refresh(u);return {'access_token':token_for(u.id),'token_type':'bearer'}
 @app.post('/auth/token')
 def login(form:OAuth2PasswordRequestForm=Depends(),s:Session=Depends(db)):
     u=s.query(User).filter(User.email==form.username).first()
-    if not u or not pwd.verify(form.password,u.password_hash):raise HTTPException(401,'Wrong email or password')
+    if not u or not pwd.verify(form.password,u.password_hash):raise HTTPException(401,'ईमेल या पासवर्ड गलत है')
     return {'access_token':token_for(u.id),'token_type':'bearer'}
 @app.get('/me',response_model=UserOut)
 def me(u:User=Depends(current_user)):return u
@@ -82,13 +82,13 @@ def topics(exam:Optional[str]=None,u:User=Depends(current_user),s:Session=Depend
     return [dict(id=t.id,exam=t.exam,paper=t.paper,subject=t.subject,title_hi=t.title_hi,title_en=t.title_en,status=pmap.get(t.id).status if t.id in pmap else 'not_started',percent=pmap.get(t.id).percent if t.id in pmap else 0) for t in rows]
 @app.put('/progress')
 def save_progress(x:ProgressIn,u:User=Depends(current_user),s:Session=Depends(db)):
-    if not s.get(Topic,x.topic_id):raise HTTPException(404,'Topic not found')
+    if not s.get(Topic,x.topic_id):raise HTTPException(404,'टॉपिक नहीं मिला')
     p=s.query(Progress).filter(Progress.user_id==u.id,Progress.topic_id==x.topic_id).first()
     if not p:p=Progress(user_id=u.id,topic_id=x.topic_id);s.add(p)
     p.status=x.status;p.percent=max(0,min(100,x.percent));p.updated_at=datetime.now(timezone.utc);s.commit();return {'ok':True}
 @app.post('/prelims/mock/submit')
 def submit_mock(x:MockIn,u:User=Depends(current_user),s:Session=Depends(db)):
-    if x.correct+x.wrong+x.unattempted!=x.total_questions:raise HTTPException(400,'Counts must equal total questions')
+    if x.correct+x.wrong+x.unattempted!=x.total_questions:raise HTTPException(400,'सही, गलत और अनुत्तरित प्रश्नों का योग कुल प्रश्नों के बराबर होना चाहिए')
     negative_fraction=1/3;score=(x.correct*x.marks_per_question)-(x.wrong*x.marks_per_question*negative_fraction)
     r=MockResult(user_id=u.id,paper=x.paper,total_questions=x.total_questions,correct=x.correct,wrong=x.wrong,unattempted=x.unattempted,marks_per_question=x.marks_per_question,negative_fraction=negative_fraction,score=round(score,2),duration_seconds=x.duration_seconds);s.add(r);s.commit();s.refresh(r)
     return {'id':r.id,'score':r.score,'max_marks':round(x.total_questions*x.marks_per_question,2),'accuracy':round((x.correct/max(1,x.correct+x.wrong))*100,2),'negative_fraction':negative_fraction}
@@ -100,16 +100,25 @@ def prelims_history(limit:int=100,u:User=Depends(current_user),s:Session=Depends
 def current_affairs(subject:Optional[str]=None,limit:int=50,u:User=Depends(current_user)):return list_items(subject=subject,limit=limit)
 @app.post('/admin/current-affairs/ingest')
 def run_ingest(x_ingest_key:str=Header(default='')):
-    if not INGEST_KEY or x_ingest_key!=INGEST_KEY:raise HTTPException(403,'Not allowed')
+    if not INGEST_KEY or x_ingest_key!=INGEST_KEY:raise HTTPException(403,'अनुमति नहीं है')
     return {'ok':True,'pib_and_core':ingest_daily(),'official_sources':ingest_official_sources()}
 @app.get('/dashboard')
 def dashboard(u:User=Depends(current_user),s:Session=Depends(db)):
     ps=s.query(Progress).filter(Progress.user_id==u.id).all();done=sum(1 for p in ps if p.status=='completed');total=s.query(Topic).count()
     return {'name':u.name,'target_year':u.target_year,'overall_progress':round(done/max(1,total)*100),'revision_due':sum(1 for p in ps if p.status=='revision_due'),'today_topics':3,'continue_learning':'मौलिक अधिकार','prelims_tests_saved':s.query(MockResult).filter(MockResult.user_id==u.id).count()}
 from .feature_routes import build_feature_router
+from .study_routes import build_study_router
+from .exam_routes import build_exam_router
+from .ai_teacher_routes import build_ai_teacher_router
 from .topic_routes import build_topic_router
 from .mains_answer_routes import build_mains_answer_router
 from .mains_marking_routes import build_mains_marking_router
-# build_feature_router already mounts the study router, which mounts the exam router.
-# Registering build_exam_router again here created duplicate FastAPI routes with the same paths.
-app.include_router(build_feature_router(current_user));app.include_router(build_topic_router(current_user));app.include_router(build_mains_answer_router(current_user));app.include_router(build_mains_marking_router(current_user))
+
+# प्रत्येक API परिवार केवल एक बार, स्थिर namespace पर mount होता है।
+app.include_router(build_feature_router(current_user))
+app.include_router(build_study_router(current_user),prefix='/study')
+app.include_router(build_exam_router(current_user),prefix='/exam')
+app.include_router(build_ai_teacher_router(current_user))
+app.include_router(build_topic_router(current_user))
+app.include_router(build_mains_answer_router(current_user))
+app.include_router(build_mains_marking_router(current_user))
