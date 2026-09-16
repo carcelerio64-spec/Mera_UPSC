@@ -19,7 +19,7 @@ class NoteIn(BaseModel):exam:str;paper:str='';subject:str;topic:str;subtopic:str
 def _topic_is_loaded(exam,paper,subject,topic,subtopic=''):
     key=(exam or '').lower()
     if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic,subtopic or None)
-    return key=='optional' and optional_topic_is_verified(subject,paper,subtopic or topic)
+    return key=='optional' and optional_topic_is_verified(subject,paper,topic,subtopic)
 def _coverage():
     prelims=syllabus_for('prelims');mains=syllabus_for('mains');opt=optional_coverage(OPTIONAL_SUBJECTS)
     pre_ok=all(bool(x.get('topics')) for x in prelims);main_ok=all(bool(x.get('topics')) for x in mains);qualifying=set(MAINS_QUALIFYING_PAPERS).issubset({x.get('paper') for x in mains})
