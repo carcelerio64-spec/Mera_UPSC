@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from .current_affairs import list_items
 from .study_system import SessionStudy, ClassNote, QuestionBank, CompletedTopic, question_detail_map
-from .syllabus_catalog import syllabus_for
+from .syllabus_catalog import topic_is_loaded
 from .optional_syllabus_registry import optional_topic_is_verified
 PRELIMS_TARGET=100;MAINS_TARGET=50;OPTIONAL_TARGET=50
 class TopicCompletionIn(BaseModel):exam:str;paper:str;subject:str;topic:str;completed:bool=True
@@ -12,9 +12,7 @@ def _find_topic(exam,paper,subject,topic):
     exam_key=(exam or '').lower()
     if exam_key=='optional':return {'paper':paper,'subject':subject} if optional_topic_is_verified(subject,paper,topic) else None
     if exam_key not in {'prelims','mains'}:return None
-    for section in syllabus_for(exam_key):
-        if section.get('paper')==paper and section.get('subject')==subject and topic in section.get('topics',[]):return section
-    return None
+    return {'paper':paper,'subject':subject} if topic_is_loaded(exam_key,paper,subject,topic) else None
 def _is_completed(s,user_id,exam,paper,subject,topic):return s.query(CompletedTopic).filter(CompletedTopic.user_id==user_id,CompletedTopic.exam==exam.lower(),CompletedTopic.paper==paper,CompletedTopic.subject==subject,CompletedTopic.topic==topic).first() is not None
 def _target(exam):return PRELIMS_TARGET if exam.lower()=='prelims' else OPTIONAL_TARGET if exam.lower()=='optional' else MAINS_TARGET
 
