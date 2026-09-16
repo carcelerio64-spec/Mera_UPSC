@@ -15,7 +15,7 @@ class AttemptIn(BaseModel):answer:str=''
 def _valid_topic(exam,paper,subject,topic,subtopic=''):
     key=(exam or '').lower()
     if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic,subtopic or None)
-    return key=='optional' and optional_topic_is_verified(subject,paper,subtopic or topic)
+    return key=='optional' and optional_topic_is_verified(subject,paper,topic,subtopic)
 def _norm_answer(v):return ' '.join((v or '').strip().lower().split())
 
 def build_study_router(current_user):
