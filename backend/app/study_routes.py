@@ -6,55 +6,55 @@ from .study_system import SessionStudy, QuestionBank, QuestionAttempt, MainsAnsw
 from .syllabus_catalog import topic_is_loaded
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
-from .exam_routes import build_exam_router
 
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 class QuestionDetailIn(BaseModel):
     question_type:str='mains';options:list[str]=Field(default_factory=list);correct_answer:str='';explanation:str='';marks:int=0;word_limit:int=0;model_outline:str=''
 class AttemptIn(BaseModel):answer:str=''
 
-def _valid_topic(exam,paper,subject,topic):
+def _valid_topic(exam,paper,subject,topic,subtopic=''):
     key=(exam or '').lower()
-    if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic)
-    return key=='optional' and optional_topic_is_verified(subject,paper,topic)
+    if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic,subtopic or None)
+    return key=='optional' and optional_topic_is_verified(subject,paper,subtopic or topic)
 def _norm_answer(v):return ' '.join((v or '').strip().lower().split())
 
 def build_study_router(current_user):
     router=APIRouter()
     def require_admin(u=Depends(current_user)):
-        if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:raise HTTPException(403,'Admin access required')
+        if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:raise HTTPException(403,'प्रशासक अनुमति आवश्यक है')
         return u
     @router.get('/admin/status')
     def admin_status(u=Depends(current_user)):return {'is_admin':bool(ADMIN_EMAILS and u.email.lower() in ADMIN_EMAILS)}
     @router.get('/question-bank/topic')
-    def topic_questions(exam:str,paper:str,subject:str,topic:str,difficulty:Optional[str]=None,limit:int=100,u=Depends(current_user)):
-        if not _valid_topic(exam,paper,subject,topic):raise HTTPException(404,'टॉपिक सत्यापित UPSC पाठ्यक्रम में उपलब्ध नहीं है।')
+    def topic_questions(exam:str,paper:str,subject:str,topic:str,subtopic:str='',difficulty:Optional[str]=None,limit:int=100,u=Depends(current_user)):
+        if not _valid_topic(exam,paper,subject,topic,subtopic):raise HTTPException(404,'यह टॉपिक/उप-टॉपिक सत्यापित पाठ्यक्रम में उपलब्ध नहीं है')
         s=SessionStudy()
         try:
             q=s.query(QuestionBank).filter(QuestionBank.exam==exam,QuestionBank.paper==paper,QuestionBank.subject==subject,QuestionBank.topic==topic)
+            if subtopic:q=q.filter(QuestionBank.subtopic==subtopic)
             if difficulty:q=q.filter(QuestionBank.difficulty==difficulty)
             rows=q.order_by(QuestionBank.id.asc()).limit(max(1,min(limit,200))).all();details=question_detail_map([r.id for r in rows])
             return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'question':r.question,'difficulty':r.difficulty,'source':r.source,'created_at':r.created_at.isoformat(),'question_type':details.get(r.id,{}).get('question_type','mains'),'options':details.get(r.id,{}).get('options',[]),'marks':details.get(r.id,{}).get('marks',0),'word_limit':details.get(r.id,{}).get('word_limit',0)} for r in rows]
         finally:s.close()
     @router.put('/question-bank/{question_id}/detail')
     def put_question_detail(question_id:int,x:QuestionDetailIn,u=Depends(require_admin)):
-        if x.question_type=='mcq' and len(x.options)!=4:raise HTTPException(400,'MCQ के लिए ठीक 4 विकल्प आवश्यक हैं।')
-        if not save_question_detail(question_id=question_id,**x.model_dump()):raise HTTPException(404,'प्रश्न नहीं मिला या विवरण सहेजा नहीं जा सका।')
+        if x.question_type=='mcq' and len(x.options)!=4:raise HTTPException(400,'MCQ में ठीक 4 विकल्प आवश्यक हैं')
+        if not save_question_detail(question_id=question_id,**x.model_dump()):raise HTTPException(404,'प्रश्न नहीं मिला या विवरण सहेजा नहीं जा सका')
         return {'ok':True,'question_id':question_id}
     @router.post('/question-bank/{question_id}/attempt')
     def submit_attempt(question_id:int,x:AttemptIn,u=Depends(current_user)):
         s=SessionStudy()
         try:q=s.get(QuestionBank,question_id)
         finally:s.close()
-        if not q:raise HTTPException(404,'प्रश्न नहीं मिला।')
+        if not q:raise HTTPException(404,'प्रश्न नहीं मिला')
         d=question_detail_map([question_id]).get(question_id,{});qtype=d.get('question_type','mains')
         if qtype=='mcq':
             correct=d.get('correct_answer','')
-            if not correct:raise HTTPException(422,'इस MCQ की उत्तर-कुंजी उपलब्ध नहीं है।')
+            if not correct:raise HTTPException(422,'इस MCQ की उत्तर-कुंजी उपलब्ध नहीं है')
             result_code=1 if _norm_answer(x.answer)==_norm_answer(correct) else 0
         else:result_code=-1
         attempt_id=save_attempt(u.id,question_id,x.answer,result_code)
-        if not attempt_id:raise HTTPException(500,'उत्तर सहेजा नहीं जा सका।')
+        if not attempt_id:raise HTTPException(500,'उत्तर सहेजा नहीं जा सका')
         out={'attempt_id':attempt_id,'question_id':question_id,'result':'correct' if result_code==1 else 'wrong' if result_code==0 else 'ungraded'}
         if qtype=='mcq':out.update(correct_answer=d.get('correct_answer',''),explanation=d.get('explanation',''))
         return out
@@ -73,7 +73,7 @@ def build_study_router(current_user):
         s=SessionStudy()
         try:
             q=s.get(QuestionBank,question_id)
-            if not q:raise HTTPException(404,'प्रश्न नहीं मिला।')
+            if not q:raise HTTPException(404,'प्रश्न नहीं मिला')
             d=question_detail_map([question_id]).get(question_id)
             if not d:return {'question_id':question_id,'available':False}
             protected=(d.get('question_type') or 'mains').lower()!='mcq' and (q.exam or '').lower() in {'mains','optional'}
@@ -85,10 +85,9 @@ def build_study_router(current_user):
     @router.get('/pyq')
     def official_pyq(exam:str='mains',year:Optional[int]=None,subject:Optional[str]=None,u=Depends(current_user)):
         exam=exam.lower()
-        if exam not in {'prelims','mains'}:raise HTTPException(400,'परीक्षा prelims या mains होनी चाहिए।')
-        if year is not None and (year<2011 or year>2100):raise HTTPException(400,'अमान्य वर्ष।')
+        if exam not in {'prelims','mains'}:raise HTTPException(400,'परीक्षा केवल prelims या mains हो सकती है')
+        if year is not None and (year<2011 or year>2100):raise HTTPException(400,'अमान्य वर्ष')
         data=fetch_official_pyq(exam=exam,year=year,subject=subject)
         if isinstance(data,dict):data.update({'bank_type':'official_pyq','ai_generated':False,'separate_from_ai_bank':True})
         return data
-    router.include_router(build_exam_router(current_user),prefix='/exam')
     return router
