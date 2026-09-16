@@ -36,7 +36,7 @@ Base.metadata.create_all(engine)
 from .current_affairs import ingest_daily, list_items
 from .official_sources import ingest_official_sources
 pwd=CryptContext(schemes=['bcrypt'],deprecated='auto');oauth2=OAuth2PasswordBearer(tokenUrl='/auth/token')
-app=FastAPI(title='UPSC Prep API',version='1.6.0')
+app=FastAPI(title='UPSC Prep API',version='1.6.1')
 app.add_middleware(CORSMiddleware,allow_origins=['*'],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 def db():
     s=SessionLocal()
@@ -110,5 +110,6 @@ from .feature_routes import build_feature_router
 from .topic_routes import build_topic_router
 from .mains_answer_routes import build_mains_answer_router
 from .mains_marking_routes import build_mains_marking_router
-from .exam_routes import build_exam_router
-app.include_router(build_feature_router(current_user));app.include_router(build_topic_router(current_user));app.include_router(build_mains_answer_router(current_user));app.include_router(build_mains_marking_router(current_user));app.include_router(build_exam_router(current_user),prefix='/exam')
+# build_feature_router already mounts the study router, which mounts the exam router.
+# Registering build_exam_router again here created duplicate FastAPI routes with the same paths.
+app.include_router(build_feature_router(current_user));app.include_router(build_topic_router(current_user));app.include_router(build_mains_answer_router(current_user));app.include_router(build_mains_marking_router(current_user))
