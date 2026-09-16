@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from .study_system import SessionStudy, QuestionBank, QuestionAttempt, MainsAnswerSubmission, question_detail_map, save_question_detail, save_attempt
-from .syllabus_catalog import syllabus_for
+from .syllabus_catalog import topic_is_loaded
 from .optional_syllabus_registry import optional_topic_is_verified
 from .pyq_service import fetch_official_pyq
 from .exam_routes import build_exam_router
@@ -15,7 +15,7 @@ class AttemptIn(BaseModel):answer:str=''
 
 def _valid_topic(exam,paper,subject,topic):
     key=(exam or '').lower()
-    if key in {'prelims','mains'}:return any(x.get('paper')==paper and x.get('subject')==subject and topic in x.get('topics',[]) for x in syllabus_for(key))
+    if key in {'prelims','mains'}:return topic_is_loaded(key,paper,subject,topic)
     return key=='optional' and optional_topic_is_verified(subject,paper,topic)
 def _norm_answer(v):return ' '.join((v or '').strip().lower().split())
 
@@ -28,7 +28,7 @@ def build_study_router(current_user):
     def admin_status(u=Depends(current_user)):return {'is_admin':bool(ADMIN_EMAILS and u.email.lower() in ADMIN_EMAILS)}
     @router.get('/question-bank/topic')
     def topic_questions(exam:str,paper:str,subject:str,topic:str,difficulty:Optional[str]=None,limit:int=100,u=Depends(current_user)):
-        if not _valid_topic(exam,paper,subject,topic):raise HTTPException(404,'Topic is not in the loaded verified syllabus')
+        if not _valid_topic(exam,paper,subject,topic):raise HTTPException(404,'टॉपिक सत्यापित UPSC पाठ्यक्रम में उपलब्ध नहीं है।')
         s=SessionStudy()
         try:
             q=s.query(QuestionBank).filter(QuestionBank.exam==exam,QuestionBank.paper==paper,QuestionBank.subject==subject,QuestionBank.topic==topic)
@@ -38,23 +38,23 @@ def build_study_router(current_user):
         finally:s.close()
     @router.put('/question-bank/{question_id}/detail')
     def put_question_detail(question_id:int,x:QuestionDetailIn,u=Depends(require_admin)):
-        if x.question_type=='mcq' and len(x.options)!=4:raise HTTPException(400,'MCQ requires exactly 4 options')
-        if not save_question_detail(question_id=question_id,**x.model_dump()):raise HTTPException(404,'Question not found or detail could not be saved')
+        if x.question_type=='mcq' and len(x.options)!=4:raise HTTPException(400,'MCQ के लिए ठीक 4 विकल्प आवश्यक हैं।')
+        if not save_question_detail(question_id=question_id,**x.model_dump()):raise HTTPException(404,'प्रश्न नहीं मिला या विवरण सहेजा नहीं जा सका।')
         return {'ok':True,'question_id':question_id}
     @router.post('/question-bank/{question_id}/attempt')
     def submit_attempt(question_id:int,x:AttemptIn,u=Depends(current_user)):
         s=SessionStudy()
         try:q=s.get(QuestionBank,question_id)
         finally:s.close()
-        if not q:raise HTTPException(404,'Question not found')
+        if not q:raise HTTPException(404,'प्रश्न नहीं मिला।')
         d=question_detail_map([question_id]).get(question_id,{});qtype=d.get('question_type','mains')
         if qtype=='mcq':
             correct=d.get('correct_answer','')
-            if not correct:raise HTTPException(422,'MCQ answer key is not configured')
+            if not correct:raise HTTPException(422,'इस MCQ की उत्तर-कुंजी उपलब्ध नहीं है।')
             result_code=1 if _norm_answer(x.answer)==_norm_answer(correct) else 0
         else:result_code=-1
         attempt_id=save_attempt(u.id,question_id,x.answer,result_code)
-        if not attempt_id:raise HTTPException(500,'Attempt could not be saved')
+        if not attempt_id:raise HTTPException(500,'उत्तर सहेजा नहीं जा सका।')
         out={'attempt_id':attempt_id,'question_id':question_id,'result':'correct' if result_code==1 else 'wrong' if result_code==0 else 'ungraded'}
         if qtype=='mcq':out.update(correct_answer=d.get('correct_answer',''),explanation=d.get('explanation',''))
         return out
@@ -73,7 +73,7 @@ def build_study_router(current_user):
         s=SessionStudy()
         try:
             q=s.get(QuestionBank,question_id)
-            if not q:raise HTTPException(404,'Question not found')
+            if not q:raise HTTPException(404,'प्रश्न नहीं मिला।')
             d=question_detail_map([question_id]).get(question_id)
             if not d:return {'question_id':question_id,'available':False}
             protected=(d.get('question_type') or 'mains').lower()!='mcq' and (q.exam or '').lower() in {'mains','optional'}
@@ -85,12 +85,10 @@ def build_study_router(current_user):
     @router.get('/pyq')
     def official_pyq(exam:str='mains',year:Optional[int]=None,subject:Optional[str]=None,u=Depends(current_user)):
         exam=exam.lower()
-        if exam not in {'prelims','mains'}:raise HTTPException(400,'exam must be prelims or mains')
-        if year is not None and (year<2011 or year>2100):raise HTTPException(400,'Invalid year')
+        if exam not in {'prelims','mains'}:raise HTTPException(400,'परीक्षा prelims या mains होनी चाहिए।')
+        if year is not None and (year<2011 or year>2100):raise HTTPException(400,'अमान्य वर्ष।')
         data=fetch_official_pyq(exam=exam,year=year,subject=subject)
         if isinstance(data,dict):data.update({'bank_type':'official_pyq','ai_generated':False,'separate_from_ai_bank':True})
         return data
-    # Exam routes live inside the /features namespace through feature_routes.
-    # Keep an explicit /exam segment so frontend and backend paths remain stable.
     router.include_router(build_exam_router(current_user),prefix='/exam')
     return router
