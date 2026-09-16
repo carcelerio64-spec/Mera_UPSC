@@ -6,112 +6,86 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, String, Integer, Float, DateTime, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 import os
-
-DATABASE_URL=os.getenv('DATABASE_URL','sqlite:///./upsc.db')
-connect_args={'check_same_thread':False} if DATABASE_URL.startswith('sqlite') else {}
-engine=create_engine(DATABASE_URL,connect_args=connect_args)
-SessionStudy=sessionmaker(bind=engine,autocommit=False,autoflush=False)
-class StudyBase(DeclarativeBase): pass
-
+DATABASE_URL=os.getenv('DATABASE_URL','sqlite:///./upsc.db');connect_args={'check_same_thread':False} if DATABASE_URL.startswith('sqlite') else {};engine=create_engine(DATABASE_URL,connect_args=connect_args);SessionStudy=sessionmaker(bind=engine,autocommit=False,autoflush=False)
+class StudyBase(DeclarativeBase):pass
 class QuestionBank(StudyBase):
-    __tablename__='question_bank'
-    id:Mapped[int]=mapped_column(primary_key=True)
-    exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),index=True);subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);subtopic:Mapped[str]=mapped_column(String(240),default='')
-    question:Mapped[str]=mapped_column(Text);normalized_hash:Mapped[str]=mapped_column(String(64),unique=True,index=True);difficulty:Mapped[str]=mapped_column(String(30),default='moderate');source:Mapped[str]=mapped_column(String(300),default='AI-generated');created_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
-
+ __tablename__='question_bank';id:Mapped[int]=mapped_column(primary_key=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),index=True);subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);subtopic:Mapped[str]=mapped_column(String(240),default='');question:Mapped[str]=mapped_column(Text);normalized_hash:Mapped[str]=mapped_column(String(64),unique=True,index=True);difficulty:Mapped[str]=mapped_column(String(30),default='moderate');source:Mapped[str]=mapped_column(String(300),default='AI-generated');created_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 class QuestionDetail(StudyBase):
-    __tablename__='question_details'
-    id:Mapped[int]=mapped_column(primary_key=True);question_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);question_type:Mapped[str]=mapped_column(String(30),default='mains');options_json:Mapped[str]=mapped_column(Text,default='[]');correct_answer:Mapped[str]=mapped_column(Text,default='');explanation:Mapped[str]=mapped_column(Text,default='');marks:Mapped[int]=mapped_column(Integer,default=0);word_limit:Mapped[int]=mapped_column(Integer,default=0);model_outline:Mapped[str]=mapped_column(Text,default='');updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
-
+ __tablename__='question_details';id:Mapped[int]=mapped_column(primary_key=True);question_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);question_type:Mapped[str]=mapped_column(String(30),default='mains');options_json:Mapped[str]=mapped_column(Text,default='[]');correct_answer:Mapped[str]=mapped_column(Text,default='');explanation:Mapped[str]=mapped_column(Text,default='');marks:Mapped[int]=mapped_column(Integer,default=0);word_limit:Mapped[int]=mapped_column(Integer,default=0);model_outline:Mapped[str]=mapped_column(Text,default='');updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 class QuestionAttempt(StudyBase):
-    __tablename__='question_attempts'
-    id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);answer_text:Mapped[str]=mapped_column(Text,default='');result_code:Mapped[int]=mapped_column(Integer,default=-1);attempted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
-
+ __tablename__='question_attempts';id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);answer_text:Mapped[str]=mapped_column(Text,default='');result_code:Mapped[int]=mapped_column(Integer,default=-1);attempted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
+class GeneratedPaper(StudyBase):
+ __tablename__='generated_papers';id:Mapped[int]=mapped_column(primary_key=True);paper_code:Mapped[str]=mapped_column(String(64),unique=True,index=True);user_id:Mapped[int]=mapped_column(Integer,index=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),index=True);question_ids_json:Mapped[str]=mapped_column(Text);status:Mapped[str]=mapped_column(String(30),default='generated',index=True);created_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True);submitted_at:Mapped[datetime|None]=mapped_column(DateTime,nullable=True)
+class PaperResponse(StudyBase):
+ __tablename__='paper_responses';__table_args__=(UniqueConstraint('paper_id','question_id',name='uq_paper_question_response'),);id:Mapped[int]=mapped_column(primary_key=True);paper_id:Mapped[int]=mapped_column(Integer,index=True);user_id:Mapped[int]=mapped_column(Integer,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);answer_text:Mapped[str]=mapped_column(Text,default='');result_code:Mapped[int]=mapped_column(Integer,default=-1);marks_awarded:Mapped[float]=mapped_column(Float,default=0.0)
 class MainsAnswerSubmission(StudyBase):
-    __tablename__='mains_answer_submissions'
-    id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);answer_text:Mapped[str]=mapped_column(Text,default='');file_type:Mapped[str]=mapped_column(String(20),default='');file_url:Mapped[str]=mapped_column(String(1000),default='');status:Mapped[str]=mapped_column(String(30),default='submitted',index=True);submitted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
-
+ __tablename__='mains_answer_submissions';id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);answer_text:Mapped[str]=mapped_column(Text,default='');file_type:Mapped[str]=mapped_column(String(20),default='');file_url:Mapped[str]=mapped_column(String(1000),default='');status:Mapped[str]=mapped_column(String(30),default='submitted',index=True);submitted_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
 class MainsAnswerEvaluation(StudyBase):
-    __tablename__='mains_answer_evaluations'
-    id:Mapped[int]=mapped_column(primary_key=True);submission_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);user_id:Mapped[int]=mapped_column(Integer,index=True);marks_awarded:Mapped[float]=mapped_column(Float,default=0.0);max_marks:Mapped[int]=mapped_column(Integer);demand_score:Mapped[float]=mapped_column(Float,default=0.0);structure_score:Mapped[float]=mapped_column(Float,default=0.0);analysis_score:Mapped[float]=mapped_column(Float,default=0.0);evidence_score:Mapped[float]=mapped_column(Float,default=0.0);presentation_score:Mapped[float]=mapped_column(Float,default=0.0);word_limit_score:Mapped[float]=mapped_column(Float,default=0.0);strengths:Mapped[str]=mapped_column(Text,default='');improvements:Mapped[str]=mapped_column(Text,default='');model_framework:Mapped[str]=mapped_column(Text,default='');evaluator:Mapped[str]=mapped_column(String(60),default='UPSC-pattern AI');evaluated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
-
+ __tablename__='mains_answer_evaluations';id:Mapped[int]=mapped_column(primary_key=True);submission_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);question_id:Mapped[int]=mapped_column(Integer,index=True);user_id:Mapped[int]=mapped_column(Integer,index=True);marks_awarded:Mapped[float]=mapped_column(Float,default=0.0);max_marks:Mapped[int]=mapped_column(Integer);demand_score:Mapped[float]=mapped_column(Float,default=0.0);structure_score:Mapped[float]=mapped_column(Float,default=0.0);analysis_score:Mapped[float]=mapped_column(Float,default=0.0);evidence_score:Mapped[float]=mapped_column(Float,default=0.0);presentation_score:Mapped[float]=mapped_column(Float,default=0.0);word_limit_score:Mapped[float]=mapped_column(Float,default=0.0);strengths:Mapped[str]=mapped_column(Text,default='');improvements:Mapped[str]=mapped_column(Text,default='');model_framework:Mapped[str]=mapped_column(Text,default='');evaluator:Mapped[str]=mapped_column(String(60),default='UPSC-pattern AI');evaluated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
 class CompletedTopic(StudyBase):
-    __tablename__='completed_topics';__table_args__=(UniqueConstraint('user_id','exam','paper','subject','topic',name='uq_user_completed_topic'),)
-    id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),index=True);subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);completed_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
-
+ __tablename__='completed_topics';__table_args__=(UniqueConstraint('user_id','exam','paper','subject','topic',name='uq_user_completed_topic'),);id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),index=True);subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);completed_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc),index=True)
 class OptionalSelection(StudyBase):
-    __tablename__='optional_selections'
-    id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);subject:Mapped[str]=mapped_column(String(160),index=True);updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
-
+ __tablename__='optional_selections';id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,unique=True,index=True);subject:Mapped[str]=mapped_column(String(160),index=True);updated_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 class ClassNote(StudyBase):
-    __tablename__='class_notes'
-    id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),default='');subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);subtopic:Mapped[str]=mapped_column(String(240),default='');title:Mapped[str]=mapped_column(String(240));file_type:Mapped[str]=mapped_column(String(20));file_url:Mapped[str]=mapped_column(String(1000));uploaded_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
-
+ __tablename__='class_notes';id:Mapped[int]=mapped_column(primary_key=True);user_id:Mapped[int]=mapped_column(Integer,index=True);exam:Mapped[str]=mapped_column(String(30),index=True);paper:Mapped[str]=mapped_column(String(80),default='');subject:Mapped[str]=mapped_column(String(160),index=True);topic:Mapped[str]=mapped_column(String(240),index=True);subtopic:Mapped[str]=mapped_column(String(240),default='');title:Mapped[str]=mapped_column(String(240));file_type:Mapped[str]=mapped_column(String(20));file_url:Mapped[str]=mapped_column(String(1000));uploaded_at:Mapped[datetime]=mapped_column(DateTime,default=lambda:datetime.now(timezone.utc))
 StudyBase.metadata.create_all(engine)
-
 OPTIONAL_SUBJECTS=['Agriculture','Animal Husbandry & Veterinary Science','Anthropology','Botany','Chemistry','Civil Engineering','Commerce & Accountancy','Economics','Electrical Engineering','Geography','Geology','History','Law','Management','Mathematics','Mechanical Engineering','Medical Science','Philosophy','Physics','Political Science & International Relations','Psychology','Public Administration','Sociology','Statistics','Zoology','Assamese Literature','Bengali Literature','Bodo Literature','Dogri Literature','Gujarati Literature','Hindi Literature','Kannada Literature','Kashmiri Literature','Konkani Literature','Maithili Literature','Malayalam Literature','Manipuri Literature','Marathi Literature','Nepali Literature','Odia Literature','Punjabi Literature','Sanskrit Literature','Santhali Literature','Sindhi Literature','Tamil Literature','Telugu Literature','Urdu Literature','English Literature']
-
 def normalize_question(text:str)->str:
-    text=(text or '').lower().replace('।',' ');text=re.sub(r'\b(question|प्रश्न|q)\s*\d*\b',' ',text);return re.sub(r'[^a-z0-9\u0900-\u097f]+',' ',text).strip()
-def question_hash(text:str)->str:return hashlib.sha256(normalize_question(text).encode('utf-8')).hexdigest()
+ text=(text or '').lower().replace('।',' ');text=re.sub(r'\b(question|प्रश्न|q)\s*\d*\b',' ',text);return re.sub(r'[^a-z0-9\u0900-\u097f]+',' ',text).strip()
+def question_hash(text:str)->str:return hashlib.sha256(normalize_question(text).encode()).hexdigest()
 def _token_set(text:str):return {x for x in normalize_question(text).split() if len(x)>1}
-def _near_duplicate(a:str,b:str)->bool:
-    na,nb=normalize_question(a),normalize_question(b)
-    if not na or not nb:return False
-    if SequenceMatcher(None,na,nb).ratio()>=0.90:return True
-    ta,tb=_token_set(na),_token_set(nb)
-    if ta and tb:
-        j=len(ta & tb)/max(1,len(ta | tb));containment=len(ta & tb)/max(1,min(len(ta),len(tb)))
-        if j>=0.82 or (containment>=0.90 and SequenceMatcher(None,na,nb).ratio()>=0.78):return True
-    return False
-
-def find_duplicate_question(question:str,exam:str=None):
-    h=question_hash(question);s=SessionStudy()
-    try:
-        exact=s.query(QuestionBank).filter(QuestionBank.normalized_hash==h).first()
-        if exact:return {'id':exact.id,'type':'exact'}
-        q=s.query(QuestionBank)
-        if exam:q=q.filter(QuestionBank.exam==exam)
-        for row in q.yield_per(500):
-            if _near_duplicate(question,row.question):return {'id':row.id,'type':'near'}
-        return None
-    finally:s.close()
-
+def _near_duplicate(a,b):
+ na,nb=normalize_question(a),normalize_question(b)
+ if not na or not nb:return False
+ if SequenceMatcher(None,na,nb).ratio()>=.90:return True
+ ta,tb=_token_set(na),_token_set(nb)
+ if ta and tb:
+  j=len(ta&tb)/max(1,len(ta|tb));c=len(ta&tb)/max(1,min(len(ta),len(tb)))
+  if j>=.82 or(c>=.90 and SequenceMatcher(None,na,nb).ratio()>=.78):return True
+ return False
+def find_duplicate_question(question,exam=None):
+ h=question_hash(question);s=SessionStudy()
+ try:
+  exact=s.query(QuestionBank).filter(QuestionBank.normalized_hash==h).first()
+  if exact:return {'id':exact.id,'type':'exact'}
+  q=s.query(QuestionBank)
+  if exam:q=q.filter(QuestionBank.exam==exam)
+  for row in q.yield_per(500):
+   if _near_duplicate(question,row.question):return {'id':row.id,'type':'near'}
+  return None
+ finally:s.close()
 def save_unique_question(exam,paper,subject,topic,question,subtopic='',difficulty='moderate',source='AI-generated'):
-    if find_duplicate_question(question,exam):return None
-    h=question_hash(question);s=SessionStudy()
-    try:
-        row=QuestionBank(exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,question=question,normalized_hash=h,difficulty=difficulty,source=source);s.add(row);s.commit();s.refresh(row);return row.id
-    except Exception:s.rollback();return None
-    finally:s.close()
-
-def save_question_detail(question_id:int,question_type:str='mains',options=None,correct_answer:str='',explanation:str='',marks:int=0,word_limit:int=0,model_outline:str=''):
-    s=SessionStudy()
-    try:
-        if not s.get(QuestionBank,question_id):return False
-        row=s.query(QuestionDetail).filter(QuestionDetail.question_id==question_id).first()
-        if not row:row=QuestionDetail(question_id=question_id);s.add(row)
-        row.question_type=question_type;row.options_json=json.dumps(options or [],ensure_ascii=False);row.correct_answer=correct_answer or '';row.explanation=explanation or '';row.marks=max(0,int(marks or 0));row.word_limit=max(0,int(word_limit or 0));row.model_outline=model_outline or '';row.updated_at=datetime.now(timezone.utc);s.commit();return True
-    except Exception:s.rollback();return False
-    finally:s.close()
-
+ if find_duplicate_question(question,exam):return None
+ s=SessionStudy()
+ try:
+  row=QuestionBank(exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,question=question,normalized_hash=question_hash(question),difficulty=difficulty,source=source);s.add(row);s.commit();s.refresh(row);return row.id
+ except Exception:s.rollback();return None
+ finally:s.close()
+def save_question_detail(question_id,question_type='mains',options=None,correct_answer='',explanation='',marks=0,word_limit=0,model_outline=''):
+ s=SessionStudy()
+ try:
+  if not s.get(QuestionBank,question_id):return False
+  row=s.query(QuestionDetail).filter(QuestionDetail.question_id==question_id).first()
+  if not row:row=QuestionDetail(question_id=question_id);s.add(row)
+  row.question_type=question_type;row.options_json=json.dumps(options or [],ensure_ascii=False);row.correct_answer=correct_answer;row.explanation=explanation;row.marks=max(0,int(marks or 0));row.word_limit=max(0,int(word_limit or 0));row.model_outline=model_outline;row.updated_at=datetime.now(timezone.utc);s.commit();return True
+ except Exception:s.rollback();return False
+ finally:s.close()
 def question_detail_map(question_ids):
-    ids=[int(x) for x in question_ids if x is not None]
-    if not ids:return {}
-    s=SessionStudy()
-    try:
-        out={}
-        for r in s.query(QuestionDetail).filter(QuestionDetail.question_id.in_(ids)).all():
-            try:options=json.loads(r.options_json or '[]')
-            except Exception:options=[]
-            out[r.question_id]={'question_type':r.question_type,'options':options,'correct_answer':r.correct_answer,'explanation':r.explanation,'marks':r.marks,'word_limit':r.word_limit,'model_outline':r.model_outline}
-        return out
-    finally:s.close()
-
-def save_attempt(user_id:int,question_id:int,answer_text:str,result_code:int):
-    s=SessionStudy()
-    try:
-        if not s.get(QuestionBank,question_id):return None
-        row=QuestionAttempt(user_id=user_id,question_id=question_id,answer_text=answer_text or '',result_code=result_code,attempted_at=datetime.now(timezone.utc));s.add(row);s.commit();s.refresh(row);return row.id
-    except Exception:s.rollback();return None
-    finally:s.close()
+ ids=[int(x) for x in question_ids if x is not None]
+ if not ids:return {}
+ s=SessionStudy()
+ try:
+  out={}
+  for r in s.query(QuestionDetail).filter(QuestionDetail.question_id.in_(ids)).all():
+   try:options=json.loads(r.options_json or '[]')
+   except Exception:options=[]
+   out[r.question_id]={'question_type':r.question_type,'options':options,'correct_answer':r.correct_answer,'explanation':r.explanation,'marks':r.marks,'word_limit':r.word_limit,'model_outline':r.model_outline}
+  return out
+ finally:s.close()
+def save_attempt(user_id,question_id,answer_text,result_code):
+ s=SessionStudy()
+ try:
+  if not s.get(QuestionBank,question_id):return None
+  row=QuestionAttempt(user_id=user_id,question_id=question_id,answer_text=answer_text or '',result_code=result_code);s.add(row);s.commit();s.refresh(row);return row.id
+ except Exception:s.rollback();return None
+ finally:s.close()
