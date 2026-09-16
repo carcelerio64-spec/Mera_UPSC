@@ -67,8 +67,8 @@ def build_feature_router(current_user):
     @router.post('/question-bank')
     def add_question(x:QuestionIn,u=Depends(require_admin)):
         if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic,x.subtopic):raise HTTPException(400,'प्रश्न का टॉपिक/उप-टॉपिक सत्यापित पाठ्यक्रम में नहीं है')
-        ok,qid=save_unique_question(**x.model_dump());
-        if not ok:raise HTTPException(409,'डुप्लिकेट या बहुत समान प्रश्न पहले से मौजूद है')
+        qid=save_unique_question(**x.model_dump())
+        if not qid:raise HTTPException(409,'डुप्लिकेट या बहुत समान प्रश्न पहले से मौजूद है')
         return {'ok':True,'id':qid}
     @router.get('/question-bank/topic')
     def questions(exam:str,paper:str,subject:str,topic:str,subtopic:str='',limit:int=100,u=Depends(current_user)):
