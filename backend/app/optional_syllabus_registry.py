@@ -1,7 +1,7 @@
 """UPSC CSE Optional syllabus registry with fail-closed completeness checks.
 
 No subject is treated as generation-ready until both Paper-I and Paper-II contain verified
-hierarchical syllabus entries.  This prevents an empty/partial Optional from producing fake papers.
+hierarchical syllabus entries. This prevents an empty/partial Optional from producing fake papers.
 """
 from copy import deepcopy
 from .upsc_cse_structure import ALL_OPTIONALS, NON_LITERATURE_OPTIONALS, LITERATURE_LANGUAGES, OFFICIAL_NOTIFICATION_SOURCE, OFFICIAL_PYQ_SOURCE
@@ -61,7 +61,8 @@ def get_optional_subject(subject: str):
     return data
 
 
-def optional_topic_is_verified(subject: str, paper: str, topic: str) -> bool:
+def optional_topic_is_verified(subject: str, paper: str, topic: str, subtopic: str = "") -> bool:
+    """Validate an Optional hierarchy without allowing a subtopic to masquerade as a topic."""
     data = get_optional_subject(subject)
     if not data["generation_ready"]:
         return False
@@ -69,8 +70,11 @@ def optional_topic_is_verified(subject: str, paper: str, topic: str) -> bool:
         if p["paper"] != paper:
             continue
         for item in p["topics"]:
-            if item["topic"] == topic or topic in item["subtopics"]:
+            if item["topic"] != topic:
+                continue
+            if not subtopic:
                 return True
+            return subtopic in (item.get("subtopics") or [])
     return False
 
 
