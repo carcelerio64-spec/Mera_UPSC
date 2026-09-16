@@ -11,8 +11,6 @@ from .study_system import SessionStudy,OPTIONAL_SUBJECTS,OptionalSelection,Class
 from .syllabus_catalog import syllabus_for,topic_is_loaded
 from .optional_syllabus_registry import get_optional_subject,optional_topic_is_verified,optional_coverage
 from .upsc_cse_structure import MAINS_QUALIFYING_PAPERS,MAINS_COMPULSORY_MERIT_PAPERS,PRELIMS_PAPERS,OFFICIAL_NOTIFICATION_SOURCE
-from .study_routes import build_study_router
-from .ai_teacher_routes import build_ai_teacher_router
 ADMIN_EMAILS={x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()};UPLOAD_DIR=Path(os.getenv('UPLOAD_DIR','./uploads'));UPLOAD_DIR.mkdir(parents=True,exist_ok=True);MAX_UPLOAD_BYTES=20*1024*1024;ALLOWED_EXTENSIONS={'.pdf','.jpg','.jpeg','.png','.webp','.heic','.heif'}
 class OptionalIn(BaseModel):subject:str
 class QuestionIn(BaseModel):exam:str;paper:str;subject:str;topic:str;question:str;subtopic:str='';difficulty:str='moderate';source:str='AI-generated'
@@ -30,74 +28,66 @@ def _coverage():
 def build_feature_router(current_user):
     router=APIRouter(prefix='/features',tags=['features'])
     def require_admin(u=Depends(current_user)):
-        if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:raise HTTPException(403,'Admin access required')
+        if not ADMIN_EMAILS or u.email.lower() not in ADMIN_EMAILS:raise HTTPException(403,'प्रशासक अनुमति आवश्यक है')
         return u
     @router.get('/syllabus')
-    def get_syllabus(exam:Optional[str]=None,u=Depends(current_user)):return syllabus_for(exam or 'all')
+    def syllabus(exam:Optional[str]=None,u=Depends(current_user)):
+        if exam:return syllabus_for(exam)
+        return syllabus_for('prelims')+syllabus_for('mains')
     @router.get('/syllabus/coverage')
     def syllabus_coverage(u=Depends(current_user)):return _coverage()
     @router.get('/syllabus/structure')
-    def syllabus_structure(u=Depends(current_user)):return {'prelims':list(PRELIMS_PAPERS),'mains_qualifying':list(MAINS_QUALIFYING_PAPERS),'mains_merit':list(MAINS_COMPULSORY_MERIT_PAPERS),'optional_subjects':OPTIONAL_SUBJECTS,'optional_papers':['Paper-I','Paper-II'],'source_url':OFFICIAL_NOTIFICATION_SOURCE}
-    @router.get('/syllabus/{exam}')
-    def get_exam_syllabus(exam:str,u=Depends(current_user)):
-        if exam.lower() not in {'prelims','mains','optional'}:raise HTTPException(404,'Unknown exam section')
-        return syllabus_for(exam)
-    @router.get('/current-affairs/date-wise')
-    def current_affairs_date_wise(subject:Optional[str]=None,date:Optional[str]=None,limit:int=50,u=Depends(current_user)):return list_items(subject=subject,limit=limit,on_date=date)
-    @router.post('/admin/current-affairs/update-now')
-    def update_current_affairs_now(backfill_days:int=7,u=Depends(require_admin)):
-        days=max(1,min(backfill_days,30));return {'ok':True,'backfill_days':days,'core':ingest_daily(days),'official_sources':ingest_official_sources()}
+    def syllabus_structure(u=Depends(current_user)):return {'prelims':syllabus_for('prelims'),'mains':syllabus_for('mains'),'coverage':_coverage()}
     @router.get('/optional/subjects')
     def optional_subjects(u=Depends(current_user)):return OPTIONAL_SUBJECTS
     @router.get('/optional/selection')
-    def get_optional_selection(u=Depends(current_user)):
+    def optional_selection(u=Depends(current_user)):
         s=SessionStudy()
-        try:
-            row=s.query(OptionalSelection).filter(OptionalSelection.user_id==u.id).first();return {'subject':row.subject if row else None}
+        try:r=s.query(OptionalSelection).filter(OptionalSelection.user_id==u.id).first();return {'subject':r.subject if r else None}
         finally:s.close()
     @router.put('/optional/selection')
-    def save_optional_selection(x:OptionalIn,u=Depends(current_user)):
-        if x.subject not in OPTIONAL_SUBJECTS:raise HTTPException(400,'Invalid optional subject')
+    def save_optional(x:OptionalIn,u=Depends(current_user)):
+        if x.subject not in OPTIONAL_SUBJECTS:raise HTTPException(400,'अमान्य वैकल्पिक विषय')
         s=SessionStudy()
         try:
-            row=s.query(OptionalSelection).filter(OptionalSelection.user_id==u.id).first()
-            if not row:row=OptionalSelection(user_id=u.id,subject=x.subject);s.add(row)
-            row.subject=x.subject;row.updated_at=datetime.now(timezone.utc);s.commit();return {'ok':True,'subject':x.subject}
+            r=s.query(OptionalSelection).filter(OptionalSelection.user_id==u.id).first()
+            if not r:r=OptionalSelection(user_id=u.id,subject=x.subject);s.add(r)
+            else:r.subject=x.subject;r.updated_at=datetime.now(timezone.utc)
+            s.commit();return {'ok':True,'subject':x.subject}
         finally:s.close()
     @router.get('/optional/syllabus/{subject}')
     def optional_syllabus(subject:str,u=Depends(current_user)):
-        if subject not in OPTIONAL_SUBJECTS:raise HTTPException(404,'Unknown optional subject')
-        return get_optional_subject(subject)
-    @router.get('/optional/selected-syllabus')
-    def selected_optional_syllabus(u=Depends(current_user)):
-        s=SessionStudy()
-        try:
-            row=s.query(OptionalSelection).filter(OptionalSelection.user_id==u.id).first()
-            if not row:raise HTTPException(404,'Optional not selected')
-            return get_optional_subject(row.subject)
-        finally:s.close()
+        row=get_optional_subject(subject)
+        if not row:raise HTTPException(404,'वैकल्पिक विषय नहीं मिला')
+        return row
+    @router.get('/current-affairs/date-wise')
+    def current_affairs_date_wise(subject:Optional[str]=None,limit:int=100,u=Depends(current_user)):return list_items(subject=subject,limit=limit)
+    @router.post('/admin/current-affairs/ingest')
+    def ingest(u=Depends(require_admin)):return {'ok':True,'pib_and_core':ingest_daily(),'official_sources':ingest_official_sources()}
     @router.post('/question-bank')
     def add_question(x:QuestionIn,u=Depends(require_admin)):
-        if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic,x.subtopic):raise HTTPException(422,'प्रश्न का टॉपिक/उप-टॉपिक सत्यापित UPSC पाठ्यक्रम में नहीं है।')
-        qid=save_unique_question(**x.model_dump())
-        if not qid:raise HTTPException(409,'Duplicate or near-duplicate question blocked')
+        if not _topic_is_loaded(x.exam,x.paper,x.subject,x.topic,x.subtopic):raise HTTPException(400,'प्रश्न का टॉपिक/उप-टॉपिक सत्यापित पाठ्यक्रम में नहीं है')
+        ok,qid=save_unique_question(**x.model_dump());
+        if not ok:raise HTTPException(409,'डुप्लिकेट या बहुत समान प्रश्न पहले से मौजूद है')
         return {'ok':True,'id':qid}
-    @router.get('/question-bank/count')
-    def question_bank_count(u=Depends(current_user)):
+    @router.get('/question-bank/topic')
+    def questions(exam:str,paper:str,subject:str,topic:str,subtopic:str='',limit:int=100,u=Depends(current_user)):
+        if not _topic_is_loaded(exam,paper,subject,topic,subtopic):raise HTTPException(404,'टॉपिक/उप-टॉपिक सत्यापित पाठ्यक्रम में नहीं है')
         s=SessionStudy()
-        try:return {'total':s.query(QuestionBank).count(),'prelims':s.query(QuestionBank).filter(QuestionBank.exam=='prelims').count(),'mains':s.query(QuestionBank).filter(QuestionBank.exam=='mains').count(),'optional':s.query(QuestionBank).filter(QuestionBank.exam=='optional').count()}
-        finally:s.close()
-    @router.post('/uploads/class-note')
-    async def upload_class_note(file:UploadFile=File(...),exam:str=Form(...),subject:str=Form(...),topic:str=Form(...),title:str=Form(...),paper:str=Form(''),subtopic:str=Form(''),u=Depends(current_user)):
-        ext=Path(file.filename or '').suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS:raise HTTPException(400,'केवल PDF/JPG/JPEG/PNG/WEBP/HEIC स्वीकार हैं।')
-        data=await file.read(MAX_UPLOAD_BYTES+1);await file.close()
-        if len(data)>MAX_UPLOAD_BYTES:raise HTTPException(413,'फ़ाइल बहुत बड़ी है। अधिकतम 20 MB।')
-        safe=re.sub(r'[^a-zA-Z0-9_-]+','-',Path(file.filename or 'note').stem).strip('-')[:60] or 'note';stored=f'u{u.id}_{uuid.uuid4().hex}_{safe}{ext}';(UPLOAD_DIR/stored).write_bytes(data);file_type='pdf' if ext=='.pdf' else 'photo';file_url=f'/features/uploads/{stored}';s=SessionStudy()
         try:
-            row=ClassNote(user_id=u.id,exam=exam,paper=paper,subject=subject,topic=topic,subtopic=subtopic,title=title,file_type=file_type,file_url=file_url);s.add(row);s.commit();s.refresh(row);return {'ok':True,'id':row.id,'file_type':file_type,'file_url':file_url}
-        except Exception:s.rollback();(UPLOAD_DIR/stored).unlink(missing_ok=True);raise
+            q=s.query(QuestionBank).filter(QuestionBank.exam==exam,QuestionBank.paper==paper,QuestionBank.subject==subject,QuestionBank.topic==topic)
+            if subtopic:q=q.filter(QuestionBank.subtopic==subtopic)
+            rows=q.order_by(QuestionBank.id.asc()).limit(max(1,min(limit,200))).all();return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'question':r.question,'difficulty':r.difficulty,'source':r.source} for r in rows]
         finally:s.close()
+    @router.post('/uploads')
+    async def upload(file:UploadFile=File(...),u=Depends(current_user)):
+        original=Path(file.filename or 'upload').name;ext=Path(original).suffix.lower()
+        if ext not in ALLOWED_EXTENSIONS:raise HTTPException(400,'केवल PDF/फोटो फ़ाइल स्वीकार है')
+        raw=await file.read(MAX_UPLOAD_BYTES+1)
+        if not raw:raise HTTPException(400,'खाली फ़ाइल स्वीकार नहीं है')
+        if len(raw)>MAX_UPLOAD_BYTES:raise HTTPException(413,'फ़ाइल 20 MB से बड़ी है')
+        stored=f'u{u.id}_{uuid.uuid4().hex}{ext}';path=UPLOAD_DIR/stored;path.write_bytes(raw)
+        return {'ok':True,'original_name':original,'stored_name':stored,'file_url':f'/features/uploads/{stored}','size_bytes':len(raw)}
     @router.get('/uploads/{stored_name}')
     def get_uploaded_file(stored_name:str,u=Depends(current_user)):
         if '/' in stored_name or '\\' in stored_name or '..' in stored_name:raise HTTPException(400,'अमान्य फ़ाइल नाम')
@@ -120,4 +110,4 @@ def build_feature_router(current_user):
             if topic:q=q.filter(ClassNote.topic==topic)
             rows=q.order_by(ClassNote.uploaded_at.desc()).all();return [{'id':r.id,'exam':r.exam,'paper':r.paper,'subject':r.subject,'topic':r.topic,'subtopic':r.subtopic,'title':r.title,'file_type':r.file_type,'file_url':r.file_url,'uploaded_at':r.uploaded_at.isoformat()} for r in rows]
         finally:s.close()
-    router.include_router(build_study_router(current_user));router.include_router(build_ai_teacher_router(current_user));return router
+    return router
