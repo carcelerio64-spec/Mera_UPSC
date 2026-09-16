@@ -1,152 +1,105 @@
-"""UPSC CSE optional-subject registry.
+"""UPSC CSE Optional syllabus registry with fail-closed completeness checks.
 
-The official subject set is kept here as a hard validation boundary. Detailed paper topics
-are exposed only when they have been transcribed and verified against the UPSC notification;
-missing detail is never silently reported as complete.
+No subject is treated as generation-ready until both Paper-I and Paper-II contain verified
+hierarchical syllabus entries.  This prevents an empty/partial Optional from producing fake papers.
 """
-
 from copy import deepcopy
+from .upsc_cse_structure import ALL_OPTIONALS, NON_LITERATURE_OPTIONALS, LITERATURE_LANGUAGES, OFFICIAL_NOTIFICATION_SOURCE, OFFICIAL_PYQ_SOURCE
 
-OFFICIAL_NOTIFICATION_SOURCE = "https://upsc.gov.in/sites/default/files/Notif-CSP-2025-Engl-220125.pdf"
-OFFICIAL_PYQ_SOURCE = "https://www.upsc.gov.in/examinations/previous-question-papers"
-
-NON_LITERATURE_OPTIONALS = [
-    "Agriculture", "Animal Husbandry and Veterinary Science", "Anthropology", "Botany",
-    "Chemistry", "Civil Engineering", "Commerce and Accountancy", "Economics",
-    "Electrical Engineering", "Geography", "Geology", "History", "Law", "Management",
-    "Mathematics", "Mechanical Engineering", "Medical Science", "Philosophy", "Physics",
-    "Political Science and International Relations", "Psychology", "Public Administration",
-    "Sociology", "Statistics", "Zoology",
-]
-
-LITERATURE_LANGUAGES = [
-    "Assamese", "Bengali", "Bodo", "Dogri", "Gujarati", "Hindi", "Kannada", "Kashmiri",
-    "Konkani", "Maithili", "Malayalam", "Manipuri", "Marathi", "Nepali", "Odia", "Punjabi",
-    "Sanskrit", "Santhali", "Sindhi", "Tamil", "Telugu", "Urdu", "English",
-]
-
-OFFICIAL_OPTIONAL_SUBJECTS = NON_LITERATURE_OPTIONALS + [
-    f"{language} Literature" for language in LITERATURE_LANGUAGES
-]
-
-# Paper detail is added only after line-by-line official verification.
+OFFICIAL_OPTIONAL_SUBJECTS = list(ALL_OPTIONALS)
 OPTIONAL_DATA = {
     "Anthropology": {
         "source_url": OFFICIAL_NOTIFICATION_SOURCE,
         "complete": False,
         "papers": [
-            {
-                "paper": "Paper-I",
-                "topics": [
-                    "1.1 Meaning, scope and development of Anthropology",
-                    "1.2 Relationships with other disciplines",
-                    "1.3 Main branches of Anthropology and their relevance",
-                    "1.4 Human evolution and emergence of man",
-                    "1.5 Primates: characteristics, taxonomy, adaptations and behaviour",
-                    "1.6 Fossil hominids and phylogenetic status",
-                    "1.7 Biological basis of life",
-                    "1.8 Prehistoric archaeology and cultural evolution",
-                    "2 Culture: concept, characteristics and theories",
-                    "3 Society, social institutions and social organisation",
-                    "4 Economic organisation",
-                    "5 Political organisation and social control",
-                    "6 Religion and magic",
-                    "7 Anthropological theories",
-                    "8 Research methods in Anthropology",
-                    "9 Human genetics and biological variation",
-                    "10 Human growth and development",
-                    "11 Fertility and demographic anthropology",
-                    "12 Applications of Anthropology",
-                ],
-                "fully_verified": False,
-            },
-            {
-                "paper": "Paper-II",
-                "topics": [
-                    "1 Evolution of Indian culture and civilization, palaeo-anthropology and ethno-archaeology",
-                    "2 Demographic profile of India",
-                    "3 Traditional Indian social system and social change",
-                    "4 Emergence and growth of Anthropology in India",
-                    "5 Indian village studies and linguistic/religious minorities",
-                    "6 Tribal situation in India and constitutional safeguards",
-                    "7 Social change, ethnicity and tribal movements",
-                    "8 Religion, tribes and nation-state",
-                    "9 Tribal administration, development and applied Anthropology",
-                ],
-                "fully_verified": False,
-            },
+            {"paper":"Paper-I","fully_verified":False,"topics":[
+                {"topic":"Anthropology: meaning, scope and development","subtopics":["Relationships with other disciplines","Main branches and relevance"]},
+                {"topic":"Human evolution","subtopics":["Primates","Fossil hominids","Biological basis of life","Prehistoric archaeology and cultural evolution"]},
+                {"topic":"Culture and society","subtopics":["Culture concept and theories","Social institutions and organisation","Economic organisation","Political organisation and social control","Religion and magic"]},
+                {"topic":"Anthropological theory and methods","subtopics":["Anthropological theories","Research methods"]},
+                {"topic":"Biological anthropology","subtopics":["Human genetics and biological variation","Human growth and development","Fertility and demographic anthropology","Applications of Anthropology"]},
+            ]},
+            {"paper":"Paper-II","fully_verified":False,"topics":[
+                {"topic":"Indian anthropology","subtopics":["Evolution of Indian culture and civilization","Palaeo-anthropology and ethno-archaeology","Demographic profile of India"]},
+                {"topic":"Indian social system","subtopics":["Traditional social system and social change","Village studies","Linguistic and religious minorities"]},
+                {"topic":"Anthropology in India","subtopics":["Emergence and growth of Anthropology in India"]},
+                {"topic":"Tribes in India","subtopics":["Tribal situation","Constitutional safeguards","Social change and ethnicity","Tribal movements","Religion and nation-state","Tribal administration and development"]},
+            ]},
         ],
-    },
+    }
 }
 
 
+def _blank_papers():
+    return [
+        {"paper":"Paper-I","topics":[],"fully_verified":False},
+        {"paper":"Paper-II","topics":[],"fully_verified":False},
+    ]
+
+
+def _paper_complete(paper):
+    topics = paper.get("topics") or []
+    return bool(paper.get("fully_verified")) and bool(topics) and all(
+        isinstance(t, dict) and t.get("topic") and t.get("subtopics") and all(t.get("subtopics"))
+        for t in topics
+    )
+
+
 def get_optional_subject(subject: str):
-    data = OPTIONAL_DATA.get(subject)
-    if not data:
-        return {
-            "subject": subject,
-            "official_subject": subject in OFFICIAL_OPTIONAL_SUBJECTS,
-            "source_url": OFFICIAL_NOTIFICATION_SOURCE,
-            "pyq_source_url": OFFICIAL_PYQ_SOURCE,
-            "complete": False,
-            "papers": [
-                {"paper": "Paper-I", "topics": [], "fully_verified": False},
-                {"paper": "Paper-II", "topics": [], "fully_verified": False},
-            ],
-        }
-    out = deepcopy(data)
-    out["subject"] = subject
-    out["official_subject"] = subject in OFFICIAL_OPTIONAL_SUBJECTS
-    out["pyq_source_url"] = OFFICIAL_PYQ_SOURCE
-    return out
+    if subject not in OFFICIAL_OPTIONAL_SUBJECTS:
+        return {"subject":subject,"official_subject":False,"source_url":OFFICIAL_NOTIFICATION_SOURCE,
+                "pyq_source_url":OFFICIAL_PYQ_SOURCE,"complete":False,"generation_ready":False,"papers":_blank_papers()}
+    data = deepcopy(OPTIONAL_DATA.get(subject) or {"source_url":OFFICIAL_NOTIFICATION_SOURCE,"complete":False,"papers":_blank_papers()})
+    data.update(subject=subject, official_subject=True, pyq_source_url=OFFICIAL_PYQ_SOURCE)
+    papers = data.get("papers") or []
+    by_name = {p.get("paper"):p for p in papers}
+    normalized = [by_name.get("Paper-I", _blank_papers()[0]), by_name.get("Paper-II", _blank_papers()[1])]
+    data["papers"] = normalized
+    data["generation_ready"] = bool(data.get("complete")) and all(_paper_complete(p) for p in normalized)
+    if not data["generation_ready"]:
+        data["complete"] = False
+    return data
 
 
 def optional_topic_is_verified(subject: str, paper: str, topic: str) -> bool:
-    data = OPTIONAL_DATA.get(subject)
-    if not data or not data.get("complete"):
+    data = get_optional_subject(subject)
+    if not data["generation_ready"]:
         return False
-    for p in data.get("papers", []):
-        if p.get("paper") == paper and p.get("fully_verified") and topic in p.get("topics", []):
-            return True
+    for p in data["papers"]:
+        if p["paper"] != paper:
+            continue
+        for item in p["topics"]:
+            if item["topic"] == topic or topic in item["subtopics"]:
+                return True
     return False
 
 
 def optional_coverage(subjects=None):
     subjects = list(subjects or OFFICIAL_OPTIONAL_SUBJECTS)
-    complete, partial, empty = [], [], []
+    ready, partial, empty = [], [], []
     for subject in subjects:
         data = get_optional_subject(subject)
-        if data.get("complete"):
-            complete.append(subject)
-        elif any(p.get("topics") for p in data.get("papers", [])):
+        if data["generation_ready"]:
+            ready.append(subject)
+        elif any(p.get("topics") for p in data["papers"]):
             partial.append(subject)
         else:
             empty.append(subject)
-    return {
-        "total_subjects": len(subjects),
-        "official_non_literature_count": len(NON_LITERATURE_OPTIONALS),
-        "official_literature_count": len(LITERATURE_LANGUAGES),
-        "complete_subjects": complete,
-        "partial_subjects": partial,
-        "not_loaded_subjects": empty,
-        "complete_count": len(complete),
-        "partial_count": len(partial),
-        "not_loaded_count": len(empty),
-    }
+    return {"total_subjects":len(subjects),"official_non_literature_count":len(NON_LITERATURE_OPTIONALS),
+            "official_literature_count":len(LITERATURE_LANGUAGES),"generation_ready_subjects":ready,
+            "partial_subjects":partial,"not_loaded_subjects":empty,"generation_ready_count":len(ready),
+            "partial_count":len(partial),"not_loaded_count":len(empty),"source_url":OFFICIAL_NOTIFICATION_SOURCE}
 
 
 def validate_official_optional_registry():
-    """Fail loudly if an official optional subject disappears from the app registry."""
-    expected_non_lit = 25
-    expected_literature = 23
-    if len(NON_LITERATURE_OPTIONALS) != expected_non_lit:
-        raise ValueError("UPSC non-literature optional registry must contain exactly 25 subjects")
-    if len(LITERATURE_LANGUAGES) != expected_literature:
-        raise ValueError("UPSC literature registry must contain exactly 23 languages")
-    if len(OFFICIAL_OPTIONAL_SUBJECTS) != expected_non_lit + expected_literature:
-        raise ValueError("UPSC optional registry contains duplicates or missing subjects")
-    if len(set(OFFICIAL_OPTIONAL_SUBJECTS)) != len(OFFICIAL_OPTIONAL_SUBJECTS):
-        raise ValueError("UPSC optional registry contains duplicate subjects")
+    if len(NON_LITERATURE_OPTIONALS) != 25 or len(LITERATURE_LANGUAGES) != 23:
+        raise ValueError("UPSC Optional structural counts are incomplete")
+    if len(OFFICIAL_OPTIONAL_SUBJECTS) != 48 or len(set(OFFICIAL_OPTIONAL_SUBJECTS)) != 48:
+        raise ValueError("UPSC Optional registry must contain exactly 48 unique choices")
+    for subject in OFFICIAL_OPTIONAL_SUBJECTS:
+        papers = get_optional_subject(subject)["papers"]
+        if tuple(p["paper"] for p in papers) != ("Paper-I","Paper-II"):
+            raise ValueError(f"{subject}: Paper-I/Paper-II contract missing")
     return True
 
 
